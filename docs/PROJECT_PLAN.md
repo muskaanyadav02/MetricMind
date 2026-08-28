@@ -372,3 +372,22 @@ Automated Analysis
 Interactive Visualizations
 
 The goal is to create a system that is more reliable than a normal Text-to-SQL chatbot and more interactive than a traditional static dashboard.
+
+## Technology Stack & Team Roles
+
+The MetricMind project will use the following technologies according to each team member's role:
+
+# Data & Semantic Engineer
+Snowflake, dbt, Cube.dev, and YAML will be used for data storage, transformation, and defining governed business metrics and dimensions.
+
+# AI Agent Engineer
+Python, LangChain, Llama 3, and the Cube.dev API will be used to build the AI agent that converts natural language questions into semantic API queries.
+
+# Backend & Integration Engineer
+Python, REST APIs, JSON, and Cube.dev API integration will be used to connect the different components of the system.
+
+# Frontend & Visualization Engineer
+Next.js, Tremor, and ECharts will be used to build the conversational BI interface and interactive data visualizations.
+
+# Analytics & Insight Engineer
+Python and Pandas will be used for data analysis, KPI calculation, trend analysis, anomaly detection, proactive insights, and AI result validation.
