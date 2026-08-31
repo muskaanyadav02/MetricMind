@@ -99,3 +99,54 @@ europe_margin = (europe_profit / europe_sales) * 100
 print("European Sales:", europe_sales)
 print("European Profit:", europe_profit)
 print("European Profit Margin:", europe_margin)
+
+
+eu = df[df["Market"] == "EU"]
+
+print("EU rows:", len(eu))
+print("EU sales:", eu["Sales"].sum())
+print("EU profit:", eu["Profit"].sum())
+
+if eu["Sales"].sum() != 0:
+    print(
+        "EU profit margin:",
+        (eu["Profit"].sum() / eu["Sales"].sum()) * 100
+    )
+
+eu_by_year = (
+    eu.groupby("Year")
+      .agg(
+          Sales=("Sales", "sum"),
+          Profit=("Profit", "sum"),
+          Orders=("Order.ID", "nunique")
+      )
+)
+
+eu_by_year["Profit_Margin"] = (
+    eu_by_year["Profit"] /
+    eu_by_year["Sales"] * 100
+)
+
+print(eu_by_year)
+
+df["Order.Date"] = pd.to_datetime(df["Order.Date"])
+
+eu = df[df["Market"] == "EU"].copy()
+
+eu["Quarter"] = eu["Order.Date"].dt.to_period("Q").astype(str)
+
+eu_by_quarter = (
+    eu.groupby("Quarter")
+      .agg(
+          Sales=("Sales", "sum"),
+          Profit=("Profit", "sum"),
+          Orders=("Order.ID", "nunique")
+      )
+)
+
+eu_by_quarter["Profit_Margin"] = (
+    eu_by_quarter["Profit"] /
+    eu_by_quarter["Sales"] * 100
+)
+
+print(eu_by_quarter)

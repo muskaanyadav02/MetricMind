@@ -53,3 +53,32 @@ Represented by country, state, city, region, and market.
 ### Sales Transaction
 
 Contains quantity, sales, discount, profit, and shipping cost.
+
+## Dataset Profile
+
+- Total rows: 51,290
+- Total columns: 27
+- Unique orders: 25,035
+- Unique products: 10,292
+- Unique customers: 4,873
+- Duplicate rows: 0
+- Missing values: 0
+
+## Data Grain
+
+One row represents an order-line-level transaction.
+
+Multiple rows can belong to the same order because an order
+can contain multiple products.
+
+## Geographic Representation
+
+The `Market` field contains `EU`, which represents the European
+market in the source dataset.
+
+Therefore, European analysis should use:
+
+`Market = 'EU'`
+
+rather than searching for `Region = 'Europe'`.
+

@@ -62,3 +62,50 @@
 ### Status
 
 🟢 Dataset analysis in progress.
+
+## Day 2 — Dataset Profiling & Data Modeling
+
+### Completed
+
+- Profiled the source Global Superstore dataset using Python and Pandas.
+- Confirmed 51,290 transaction records across 27 columns.
+- Identified 25,035 unique orders, 10,292 products, and 4,873 customers.
+- Confirmed zero duplicate rows and zero missing values.
+- Identified the dataset grain as order-line-level transactions.
+- Verified that multiple rows can belong to the same order.
+- Identified `Market = EU` as the geographic representation of the European market.
+- Defined initial governed business metrics.
+- Identified the required fact and dimension model.
+
+### Initial Business Metrics
+
+- Revenue
+- Profit
+- Profit Margin
+- Orders
+- Customers
+- Quantity Sold
+- Shipping Cost
+- Average Order Value
+
+### Data Modeling
+
+Initial analytical model:
+
+- fact_sales
+- dim_customer
+- dim_product
+- dim_geography
+- dim_date
+
+### Next Steps
+
+- Configure Snowflake.
+- Create the RAW database/schema.
+- Load the source dataset into Snowflake.
+- Validate row counts and source data integrity.
+
+### Status
+
+🟢 Dataset profiling completed.
+🟢 Initial data model defined.
