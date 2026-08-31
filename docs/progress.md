@@ -26,3 +26,39 @@
 
 ### Status
 🟢 Foundation established.
+
+
+## Day 2 — Source Dataset Analysis
+
+### Completed
+
+- Inspected the existing 50,000-row Global Superstore dataset.
+- Identified major business entities including customers, products,
+  orders, sales, geography, and shipping.
+- Confirmed that the raw source dataset should remain unchanged.
+- Created an initial data validation script using Python and Pandas.
+- Started profiling row counts, unique identifiers, missing values,
+  duplicates, numerical fields, and date fields.
+- Defined the initial business metrics required by MetricMind.
+
+### Initial Metrics
+
+- Revenue
+- Profit
+- Profit Margin
+- Orders
+- Customers
+- Quantity Sold
+- Average Order Value
+- Shipping Cost
+
+### Next Steps
+
+- Complete data-quality profiling.
+- Finalize the data dictionary.
+- Design the Snowflake RAW layer.
+- Load the raw dataset into Snowflake.
+
+### Status
+
+🟢 Dataset analysis in progress.
