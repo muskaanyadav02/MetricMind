@@ -1,0 +1,65 @@
+[
+  {
+    "id": "TC-001",
+    "category": "Root Cause Analysis",
+    "user_prompt": "Why did our European profits drop last quarter?",
+    "expected_measures": ["Sales.Profit", "Sales.Sales"],
+    "expected_dimensions": ["Sales.Region"],
+    "expected_filters": [
+      {
+        "member": "Sales.Region",
+        "operator": "equals",
+        "values": ["Europe"]
+      }
+    ],
+    "expected_time_dimensions": [
+      {
+        "dimension": "Sales.Order.Date",
+        "granularity": "quarter"
+      }
+    ]
+  },
+  {
+    "id": "TC-002",
+    "category": "Time Series Aggregation",
+    "user_prompt": "Show me total sales and profit by Year and Market",
+    "expected_measures": ["Sales.Sales", "Sales.Profit"],
+    "expected_dimensions": ["Sales.Year", "Sales.Market"],
+    "expected_filters": [],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-003",
+    "category": "Categorical Breakdown",
+    "user_prompt": "Which Sub.Category generated the highest profit in APAC?",
+    "expected_measures": ["Sales.Profit"],
+    "expected_dimensions": ["Products.Sub.Category", "Sales.Region"],
+    "expected_filters": [
+      {
+        "member": "Sales.Region",
+        "operator": "equals",
+        "values": ["APAC"]
+      }
+    ],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-004",
+    "category": "Shipping Analysis",
+    "user_prompt": "Compare total Shipping.Cost and Discount by Ship.Mode",
+    "expected_measures": ["Sales.Shipping.Cost", "Sales.Discount"],
+    "expected_dimensions": ["Sales.Ship.Mode"],
+    "expected_filters": [],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-005",
+    "category": "Out of Scope Guardrail",
+    "user_prompt": "What is the average salary of our warehouse workers?",
+    "expected_measures": [],
+    "expected_dimensions": [],
+    "expected_filters": [],
+    "expected_time_dimensions": [],
+    "is_out_of_scope": true
+  }
+]
