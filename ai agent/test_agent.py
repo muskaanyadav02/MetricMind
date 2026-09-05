@@ -1,5 +1,6 @@
 from agent import process_question
 
+
 questions = [
     "Which category made the most profit?",
     "Show sales by country",
@@ -14,9 +15,11 @@ questions = [
     "Show me the best products by profit"
 ]
 
+
 for question in questions:
     result = process_question(question)
 
     print("\nQuestion:", question)
     print("Structured Query:", result["query"])
     print("Validation:", result["validation"])
+    print("Agent Response:", result["response"])
