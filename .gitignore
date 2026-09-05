@@ -218,3 +218,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 ai_agent/
+
+ai agent/
+ai_agent/
