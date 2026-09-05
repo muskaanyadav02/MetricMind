@@ -1,5 +1,4 @@
-from query_builder import build_query
-from validator import validate_query
+from agent import process_question
 
 questions = [
     "Which category made the most profit?",
@@ -15,11 +14,9 @@ questions = [
     "Show me the best products by profit"
 ]
 
-
 for question in questions:
-    query = build_query(question)
-    validation = validate_query(query)
+    result = process_question(question)
 
     print("\nQuestion:", question)
-    print("Structured Query:", query)
-    print("Validation:", validation)
+    print("Structured Query:", result["query"])
+    print("Validation:", result["validation"])
