@@ -61,5 +61,17 @@
     "expected_filters": [],
     "expected_time_dimensions": [],
     "is_out_of_scope": true
+  },
+  {
+    "id": "q1",
+    "question": "What is the total revenue for 2026?",
+    "expected_sql": "SELECT SUM(revenue) FROM sales_data WHERE YEAR(date) = 2026",
+    "expected_columns": ["sum_revenue"]
+  },
+  {
+    "id": "q2",
+    "question": "Show top 5 active users by transaction count",
+    "expected_sql": "SELECT user_id, COUNT(*) as tx_count FROM transactions GROUP BY user_id ORDER BY tx_count DESC LIMIT 5",
+    "expected_columns": ["user_id", "tx_count"]
   }
 ]
