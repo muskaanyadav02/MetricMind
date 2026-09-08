@@ -41,6 +41,39 @@
   duplicates, numerical fields, and date fields.
 - Defined the initial business metrics required by MetricMind.
 
+## Day 3 — Snowflake RAW Layer
+
+- Created the METRICMIND database.
+- Created the RAW schema.
+- Created the METRICMIND_WH X-Small warehouse.
+- Configured auto-suspend and auto-resume.
+- Created the RAW_GLOBAL_SUPERSTORE table.
+- Prepared the Snowflake RAW layer for Global Superstore ingestion.
+- Next: Load and validate the source CSV.
+
+## Day 3 — Snowflake RAW Layer
+
+- Created METRICMIND database.
+- Created RAW schema.
+- Created METRICMIND_WH warehouse.
+- Created RAW_GLOBAL_SUPERSTORE table.
+- Loaded Global Superstore source data.
+- Validated row count and key business entities.
+- Confirmed RAW layer is ready for dbt transformation.
+
+### Validation
+
+- Total rows: 51,290
+- Unique orders: 25,035
+- Unique customers: 4,873
+- Unique products: 10,292
+
+### Next
+
+- Initialize dbt project.
+- Connect dbt to Snowflake.
+- Create staging models.
+
 ### Initial Metrics
 
 - Revenue
