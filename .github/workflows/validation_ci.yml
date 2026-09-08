@@ -33,3 +33,14 @@ jobs:
       env:
         PYTHONPATH: .
       run: python -m analytics_validation.reports.generate_report
+
+    - name: Generate Validation Report
+      env:
+        PYTHONPATH: .
+      run: python -m analytics_validation.reports.generate_report
+
+    - name: Upload Report Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: validation-summary-report
+        path: analytics_validation/reports/validation_summary.md
