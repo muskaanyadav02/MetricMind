@@ -31,3 +31,9 @@ jobs:
     - name: Generate Validation Summary Report
       run: |
         python analytics_validation/reports/generate_report.py
+
+    - name: Run Benchmark Validation
+      run: python -m analytics_validation.validation.test_benchmark_cases
+
+    - name: Generate Validation Report
+      run: python -m analytics_validation.reports.generate_report
