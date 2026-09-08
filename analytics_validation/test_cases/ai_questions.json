@@ -73,5 +73,23 @@
     "question": "Show top 5 active users by transaction count",
     "expected_sql": "SELECT user_id, COUNT(*) as tx_count FROM transactions GROUP BY user_id ORDER BY tx_count DESC LIMIT 5",
     "expected_columns": ["user_id", "tx_count"]
+  },
+  {
+    "id": "q_step_01",
+    "category": "multi_step_aggregation",
+    "question": "Calculate monthly revenue and rank top performing regions for 2026",
+    "steps": [
+      {
+        "step_number": 1,
+        "description": "Filter sales data for year 2026",
+        "expected_sql": "SELECT * FROM sales WHERE year = 2026"
+      },
+      {
+        "step_number": 2,
+        "description": "Group by region and calculate total revenue",
+        "expected_sql": "SELECT region, SUM(revenue) as total_rev FROM sales WHERE year = 2026 GROUP BY region ORDER BY total_rev DESC",
+        "expected_columns": ["region", "total_rev"]
+      }
+    ]
   }
 ]
