@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: dim_product
+    description: "Product dimension containing product attributes."
+
+    columns:
+      - name: PRODUCT_ID
+        description: "Product identifier."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: PRODUCT_NAME
+        description: "Product name."
+        data_tests:
+          - not_null
+
+      - name: CATEGORY
+        description: "Product category."
+        data_tests:
+          - not_null
+
+      - name: SUB_CATEGORY
+        description: "Product sub-category."
+        data_tests:
+          - not_null

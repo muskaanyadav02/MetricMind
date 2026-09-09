@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: "Customer dimension containing one record per customer."
+
+    columns:
+      - name: CUSTOMER_ID
+        description: "Unique identifier for the customer."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: CUSTOMER_NAME
+        description: "Customer name."
+        data_tests:
+          - not_null
+
+      - name: SEGMENT
+        description: "Customer segment."
+        data_tests:
+          - not_null

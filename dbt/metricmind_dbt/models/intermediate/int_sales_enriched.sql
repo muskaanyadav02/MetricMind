@@ -1,0 +1,45 @@
+SELECT
+    ROW_ID,
+    ORDER_ID,
+    ORDER_DATE,
+    SHIP_DATE,
+
+    CUSTOMER_ID,
+    CUSTOMER_NAME,
+    SEGMENT,
+
+    PRODUCT_ID,
+    PRODUCT_NAME,
+    CATEGORY,
+    SUB_CATEGORY,
+
+    CITY,
+    STATE,
+    COUNTRY,
+    REGION,
+    MARKET,
+    MARKET2,
+
+    ORDER_PRIORITY,
+    SHIP_MODE,
+
+    QUANTITY,
+    SALES,
+    DISCOUNT,
+    PROFIT,
+    SHIPPING_COST,
+
+    YEAR,
+    WEEKNUM,
+
+    CASE
+        WHEN SALES = 0 THEN NULL
+        ELSE (PROFIT / SALES) * 100
+    END AS PROFIT_MARGIN_PERCENT,
+
+    CASE
+        WHEN DISCOUNT > 0 THEN TRUE
+        ELSE FALSE
+    END AS HAS_DISCOUNT
+
+FROM {{ ref('stg_global_superstore') }}
