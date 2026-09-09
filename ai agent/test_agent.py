@@ -1,6 +1,5 @@
 from agent import process_question
 
-
 questions = [
     "Which category made the most profit?",
     "Show sales by country",
@@ -15,7 +14,6 @@ questions = [
     "Show me the best products by profit"
 ]
 
-
 for question in questions:
     result = process_question(question)
 
@@ -23,3 +21,6 @@ for question in questions:
     print("Structured Query:", result["query"])
     print("Validation:", result["validation"])
     print("Agent Response:", result["response"])
+
+    if "semantic_result" in result:
+        print("Semantic Result:", result["semantic_result"])
