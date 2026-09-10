@@ -43,4 +43,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: validation-summary-report
-        path: analytics_validation/reports/validation_summary.md
+        path: |
+          analytics_validation/reports/validation_summary.md
+          analytics_validation/reports/validation_chart.png
+ 
+        
