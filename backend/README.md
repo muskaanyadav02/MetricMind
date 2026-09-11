@@ -184,15 +184,87 @@ credential values, only missing-setting names — asserted by tests.
 
 ## Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/v1/health` | Health, agent status, governed counts, warehouse summary |
-| `GET` | `/health` | Alias of the above, for simple local probes |
-| `GET` | `/api/v1/metrics` | The governed metric catalogue |
-| `GET` | `/api/v1/dimensions` | The governed dimension catalogue |
-| `POST` | `/api/v1/chat/query` | Ask a governed business question |
-| `POST` | `/api/v1/validate/query` | Validate a governed query payload |
-| `POST` | `/api/v1/validate/data` | Audit a set of result rows |
+This API is **governed by construction**: requests can reference only metric and
+dimension names from the governed registry (`GET /api/v1/metrics`,
+`GET /api/v1/dimensions`). There is no request field on any endpoint that
+accepts SQL — request models set `extra="forbid"`, so an unknown field such as
+`sql` is rejected with `422` before any handler runs. The SQL the backend runs
+is compiled exclusively from the registry, with filter values passed as bound
+parameters.
+
+| Method | Path | Purpose | Executes a warehouse query? |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | Health, agent status, governed counts, warehouse summary | No |
+| `GET` | `/health` | Alias of the above, for simple local probes | No |
+| `GET` | `/api/v1/metrics` | The governed metric catalogue | No |
+| `GET` | `/api/v1/dimensions` | The governed dimension catalogue | No |
+| `POST` | `/api/v1/chat/query` | Ask a governed business question | **Yes** — the only endpoint that runs SQL against the warehouse |
+| `POST` | `/api/v1/validate/query` | Validate a governed query payload and preview its compiled SQL | No — compiles, never executes |
+| `POST` | `/api/v1/validate/data` | Audit a set of result rows supplied in the request body | No — audits the rows you send |
+
+Detailed request/response contracts follow in the per-endpoint sections below:
+[`POST /api/v1/chat/query`](#post-apiv1chatquery),
+[`GET /api/v1/metrics` and `/dimensions`](#get-apiv1metrics-and-dimensions),
+[`POST /api/v1/validate/query`](#post-apiv1validatequery) and
+[`POST /api/v1/validate/data`](#post-apiv1validatedata).
+
+The same routes are explorable interactively: Swagger UI at
+<http://localhost:8000/docs>, ReDoc at <http://localhost:8000/redoc>, and the
+raw OpenAPI schema at <http://localhost:8000/openapi.json> — all served by the
+application itself, so they are always in sync with the routes.
+
+### `GET /api/v1/health`
+
+No request parameters. The response is safe to expose: it reports *whether*
+things are configured, never credential values.
+
+```json
+{
+  "status": "degraded",
+  "service": "MetricMind Backend",
+  "version": "0.1.0",
+  "agent_available": true,
+  "agent_detail": null,
+  "agent_declared_metrics": ["Sales", "Profit", "Quantity", "Discount", "Shipping Cost"],
+  "agent_declared_dimensions": ["Year", "Country", "Market", "Region", "Category"],
+  "warehouse": {
+    "backend": "snowflake",
+    "database": "METRICMIND",
+    "schema": "MART",
+    "configured": false,
+    "missing_settings": ["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD", "SNOWFLAKE_WAREHOUSE"]
+  },
+  "governed_metric_count": 8,
+  "governed_dimension_count": 17
+}
+```
+
+- `status` is `ok` when the agent module loaded **and** the warehouse reports
+  itself configured; otherwise `degraded`. Both mean the service is running —
+  missing Snowflake credentials are an expected local state, not an error.
+- `agent_declared_metrics` / `agent_declared_dimensions` are the vocabulary the
+  AI agent itself declares (quoted from `ai agent/schema.py`), which overlaps
+  only partially with the governed registry — see Known limitations.
+- `warehouse.missing_settings` lists setting **names** only, never values.
+
+Returns `200` in all cases; check the `status` field.
+
+### `GET /api/v1/metrics` and `GET /api/v1/dimensions`
+
+No request parameters. Both return a `count` field plus the catalogue and the
+governance notes. Per-item fields are documented in the section below.
+
+Returns `200`. These are plain registry lookups — no warehouse access.
+
+### Status codes across all endpoints
+
+| Code | When |
+|---|---|
+| `200` | Success. For `chat/query`, ambiguous and unsupported are also 200 — they are valid outcomes, not errors |
+| `422` | Request payload invalid (`request_validation_error`), or on `chat/query`, the governed payload failed schema validation (`validation_failed`) |
+| `502` | `chat/query` only — the warehouse returned an error (`warehouse_error`), or the agent failed to interpret the question (`agent_error`) |
+| `503` | `chat/query` only — warehouse not configured (`configuration_error`), or the agent module could not be loaded (`agent_unavailable`) |
+| `504` | `chat/query` only — the warehouse query exceeded `WAREHOUSE_TIMEOUT_SECONDS` (`warehouse_timeout`) |
 
 Every error, on every endpoint, uses one envelope:
 
