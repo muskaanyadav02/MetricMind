@@ -18,22 +18,59 @@ Two properties are load-bearing, and the test suite asserts both:
 
 ## Quick start
 
-```bash
-# From the repository root
-pip install -r backend/requirements.txt
+### 1. Create and activate a virtual environment (recommended)
 
+From the repository root:
+
+```bash
+# macOS / Linux / Git Bash
+python -m venv backend/.venv
+source backend/.venv/bin/activate
+
+# Windows PowerShell
+python -m venv backend/.venv
+backend\.venv\Scripts\Activate.ps1
+```
+
+A virtual environment keeps the backend's dependencies isolated from other
+projects on the same machine. `backend/.venv` is covered by the repository's
+existing `.venv` gitignore rule and must never be committed.
+
+### 2. Install dependencies
+
+From the repository root, with the virtual environment active:
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+### 3. Start the API
+
+```bash
 cd backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-No Snowflake credentials are required to start the service or to run the tests.
-Without them, `GET /api/v1/health` reports `"status": "degraded"` and
-`POST /api/v1/chat/query` returns `503 configuration_error` naming the missing
-settings.
+The server listens at <http://localhost:8000>.
 
-Interactive docs: <http://localhost:8000/docs>
+### 4. Open the interactive API documentation
 
-### Tests
+- Swagger UI: <http://localhost:8000/docs>
+- ReDoc: <http://localhost:8000/redoc>
+- OpenAPI schema: <http://localhost:8000/openapi.json>
+
+### 5. Verify the health endpoint
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+Without Snowflake credentials the response reports `"status": "degraded"` with
+`warehouse.configured: false`. With the warehouse configured (and the agent
+module available) it reports `"status": "ok"`. `GET /health` is an alias of the
+same endpoint for simple local probes.
+
+### 6. Run the test suite
 
 ```bash
 cd backend
@@ -42,6 +79,19 @@ python -m pytest -q
 
 The suite replaces the warehouse with an in-memory fake via FastAPI dependency
 overrides. It requires **no** Snowflake account and makes **no** network calls.
+
+### Snowflake credentials: required vs. not required
+
+- **Not required** to start the service, to run the test suite, or to serve
+  `GET /api/v1/health`, `GET /api/v1/metrics`, `GET /api/v1/dimensions`,
+  `POST /api/v1/validate/query` (returns a compiled SQL preview, executes
+  nothing) and `POST /api/v1/validate/data` (audits the rows supplied in the
+  request body).
+- **Required** for `POST /api/v1/chat/query` to run against the real warehouse.
+  Without credentials it returns `503 configuration_error` naming the missing
+  settings — it never substitutes sample data for a real query result. See
+  [Configuration](#configuration) for the environment variables to set in
+  `backend/.env`.
 
 ---
 

@@ -224,3 +224,6 @@ ai_agent/
 
 # Claude Code
 .claude/
+
+# Freebuff
+.freebuff/
