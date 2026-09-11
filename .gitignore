@@ -221,3 +221,6 @@ ai_agent/
 
 ai agent/
 ai_agent/
+
+# Claude Code
+.claude/
