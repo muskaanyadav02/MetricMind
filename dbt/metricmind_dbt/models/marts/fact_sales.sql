@@ -1,0 +1,33 @@
+SELECT
+    ROW_ID,
+
+    ORDER_ID,
+    ORDER_DATE,
+    SHIP_DATE,
+
+    CUSTOMER_ID,
+    PRODUCT_ID,
+
+    CITY,
+    STATE,
+    COUNTRY,
+    REGION,
+    MARKET,
+    MARKET2,
+
+    ORDER_PRIORITY,
+    SHIP_MODE,
+
+    QUANTITY,
+    SALES,
+    DISCOUNT,
+    PROFIT,
+    SHIPPING_COST,
+
+    YEAR,
+    WEEKNUM,
+
+    PROFIT_MARGIN_PERCENT,
+    HAS_DISCOUNT
+
+FROM {{ ref('int_sales_enriched') }}

@@ -1,0 +1,6 @@
+SELECT DISTINCT
+    CUSTOMER_ID,
+    CUSTOMER_NAME,
+    SEGMENT
+FROM {{ ref('int_sales_enriched') }}
+WHERE CUSTOMER_ID IS NOT NULL

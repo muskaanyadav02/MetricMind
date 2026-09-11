@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: metricmind_raw
+    database: METRICMIND
+    schema: RAW
+
+    tables:
+      - name: raw_global_superstore
