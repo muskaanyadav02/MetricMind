@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: fact_sales
+    description: "Transaction-level sales fact table."
+
+    columns:
+      - name: ROW_ID
+        description: "Unique identifier for each transaction row."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: ORDER_ID
+        description: "Order identifier. Multiple rows can belong to one order."
+        data_tests:
+          - not_null
+
+      - name: CUSTOMER_ID
+        description: "Customer associated with the transaction."
+        data_tests:
+          - not_null
+
+      - name: PRODUCT_ID
+        description: "Product associated with the transaction."
+        data_tests:
+          - not_null
+
+      - name: SALES
+        description: "Sales revenue for the transaction."
+        data_tests:
+          - not_null
+
+      - name: PROFIT
+        description: "Profit for the transaction."
+        data_tests:
+          - not_null
+
+      - name: QUANTITY
+        description: "Quantity sold."
+        data_tests:
+          - not_null
