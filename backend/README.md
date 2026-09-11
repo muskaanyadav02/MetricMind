@@ -97,27 +97,88 @@ overrides. It requires **no** Snowflake account and makes **no** network calls.
 
 ## Configuration
 
-All settings come from environment variables, optionally via `backend/.env`
-(copy `backend/.env.example`; `backend/.env` is gitignored and must never be
-committed). The full list with descriptions is in
-[`.env.example`](.env.example).
+### Where settings come from
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `WAREHOUSE_BACKEND` | `snowflake` | `snowflake` (implemented) or `cube` (not implemented) |
-| `SNOWFLAKE_ACCOUNT` | – | Required for the Snowflake backend |
-| `SNOWFLAKE_USER` | – | Required |
-| `SNOWFLAKE_PASSWORD` | – | Required |
-| `SNOWFLAKE_WAREHOUSE` | – | Required, e.g. `METRICMIND_WH` |
-| `SNOWFLAKE_ROLE` | – | Optional |
-| `SNOWFLAKE_DATABASE` | `METRICMIND` | Per `docs/data_dictionary.md` |
-| `SNOWFLAKE_SCHEMA` | `MART` | The dbt mart schema |
-| `SNOWFLAKE_AUTHENTICATOR` | – | Optional; omit for username/password |
-| `CORS_ALLOW_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Comma-separated |
-| `MAX_RESULT_ROWS` | `500` | Hard server-side cap on returned rows |
-| `DEFAULT_RESULT_ROWS` | `100` | Applied when a request omits `limit` |
-| `WAREHOUSE_TIMEOUT_SECONDS` | `30` | Applied as a Snowflake statement timeout |
-| `DEBUG` | `false` | Verbose logging |
+All settings are environment variables, optionally loaded from `backend/.env`.
+The application finds `backend/.env` by its own location (not the working
+directory), so the server can be started from anywhere. Unknown environment
+variables are ignored (`extra="ignore"`), and names are matched
+ case-insensitively.
+
+Variables are read at process start and cached (`get_settings()`); the
+application never connects to Snowflake or validates credentials while loading
+configuration. Credential presence is only *reported* (health payload,
+`warehouse.configured`) or checked at the moment a real connection is attempted.
+
+### Local setup with `backend/.env`
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Then edit `backend/.env` and fill in the Snowflake values you need.
+`backend/.env` is gitignored (via the repository's `.env` rule) and **must never
+be committed**. It contains only values, never real credentials — the same is
+true of [`backend/.env.example`](.env.example), which holds placeholders only.
+There are no real credentials anywhere in this repository.
+
+### Which variables are required for Snowflake execution
+
+The Snowflake backend is usable when all four of these are set (a *presence*
+check, per `Settings.warehouse_configured` in `app/config.py` — the values are
+never validated until a connection is attempted):
+
+| Required | Purpose |
+|---|---|
+| `SNOWFLAKE_ACCOUNT` | Snowflake account identifier |
+| `SNOWFLAKE_USER` | User name |
+| `SNOWFLAKE_PASSWORD` | Password. Note: the current presence check requires all four settings unconditionally — setting `SNOWFLAKE_AUTHENTICATOR` does not lift this requirement |
+| `SNOWFLAKE_WAREHOUSE` | e.g. `METRICMIND_WH` |
+
+When any of them is missing:
+
+- `GET /api/v1/health` reports `"status": "degraded"` with
+  `warehouse.configured: false`, and `warehouse.missing_settings` lists the
+  missing setting **names** (never values).
+- `POST /api/v1/chat/query` returns `503 configuration_error` naming the missing
+  settings. The application still starts and every other endpoint works.
+
+If `WAREHOUSE_BACKEND=cube`, the required pair is `CUBE_API_URL` and
+`CUBE_API_TOKEN` — but the Cube adapter is a placeholder that always reports
+itself unconfigured until the semantic layer exists (see Known limitations and
+`app/adapters/cube_client.py`).
+
+### Full variable reference
+
+Everything `.env.example` documents, matched against `app/config.py`:
+
+| Variable | Default | Required? | Purpose |
+|---|---|---|---|
+| `APP_NAME` | `MetricMind Backend` | No | Service name in health output and OpenAPI docs |
+| `APP_VERSION` | `0.1.0` | No | Version string in health output and OpenAPI docs |
+| `API_V1_PREFIX` | `/api/v1` | No | URL prefix for the versioned API routes |
+| `DEBUG` | `false` | No | Verbose logging |
+| `CORS_ALLOW_ORIGINS` | `http://localhost:3000,http://localhost:5173` | No | Comma-separated allowed browser origins. Do not use `"*"` together with credentials |
+| `CORS_ALLOW_CREDENTIALS` | `true` | No | Whether CORS requests may include credentials |
+| `REQUEST_TIMEOUT_SECONDS` | `30` | No | Documented request timeout (see `.env.example`) |
+| `WAREHOUSE_TIMEOUT_SECONDS` | `30` | No | Applied as both the Snowflake login timeout and the server-side `STATEMENT_TIMEOUT_IN_SECONDS` |
+| `MAX_RESULT_ROWS` | `500` | No | Hard server-side cap on returned rows; the request `limit` is clamped to this |
+| `DEFAULT_RESULT_ROWS` | `100` | No | Applied when a chat request omits `limit` |
+| `WAREHOUSE_BACKEND` | `snowflake` | No | `snowflake` (implemented) or `cube` (not implemented) |
+| `SNOWFLAKE_ACCOUNT` | – | **Yes** (snowflake backend) | Snowflake account identifier |
+| `SNOWFLAKE_USER` | – | **Yes** (snowflake backend) | User name |
+| `SNOWFLAKE_PASSWORD` | – | **Yes** (snowflake backend) | Password |
+| `SNOWFLAKE_ROLE` | – | No | Sent to the driver only when set |
+| `SNOWFLAKE_DATABASE` | `METRICMIND` | No | Per `docs/data_dictionary.md` |
+| `SNOWFLAKE_SCHEMA` | `MART` | No | The dbt mart schema |
+| `SNOWFLAKE_AUTHENTICATOR` | – | No | Optional; omit for username/password (e.g. `externalbrowser`, `snowflake_jwt`, `oauth`) |
+| `CUBE_API_URL` | – | Yes for `cube` backend | Cube.dev REST endpoint (not implemented; see above) |
+| `CUBE_API_TOKEN` | – | Yes for `cube` backend | Cube.dev auth token (not implemented; see above) |
+
+Credential-shaped values (`SNOWFLAKE_PASSWORD`, `CUBE_API_TOKEN`) must never be
+committed, echoed in logs, or pasted into issues. The code already enforces the
+user-facing half of this: error messages and the health payload never contain
+credential values, only missing-setting names — asserted by tests.
 
 ---
 
