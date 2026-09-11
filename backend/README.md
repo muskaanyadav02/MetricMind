@@ -79,6 +79,8 @@ python -m pytest -q
 
 The suite replaces the warehouse with an in-memory fake via FastAPI dependency
 overrides. It requires **no** Snowflake account and makes **no** network calls.
+See [Testing](#testing) for the full guide — what each file covers, how to run a
+single test, and what is not covered.
 
 ### Snowflake credentials: required vs. not required
 
@@ -548,6 +550,181 @@ new adapter implements the same interface and `build_warehouse()` selects it —
 `app/services/metric_service.py` is likewise plain data plus lookups
 (`GovernedRegistry`). A Cube-backed registry can replace `get_metric_service()`
 without touching the API surface.
+
+---
+
+## Testing
+
+### Where the tests live
+
+All backend tests are in `backend/tests/`. Nothing else in the repository tests
+this service.
+
+| File | Tests | Covers |
+|---|---|---|
+| `tests/test_health.py` | 5 | `GET /api/v1/health` and the `/health` alias — status, agent availability, governed counts, and that no credential-shaped value reaches the payload |
+| `tests/test_metrics.py` | 8 | `GET /api/v1/metrics` and `GET /api/v1/dimensions` — counts, formulas pinned to `docs/metric_dictionary.md`, additivity flags, the agent/dictionary conflict, each dimension's source model and column |
+| `tests/test_chat.py` | 20 | `POST /api/v1/chat/query` end to end — answered, ambiguous and unsupported outcomes, the evidence payload, invalid request bodies, raw-SQL rejection, warehouse `502` and `503` |
+| `tests/test_validation.py` | 48 | Agent-output translation, governed-query compilation, validation-result normalisation, and both validation endpoints |
+
+81 tests in total. `tests/conftest.py` holds the fixtures and the fakes, and
+contains no tests itself.
+
+### Running the tests
+
+```bash
+cd backend
+python -m pytest -q
+```
+
+A single file, a single test, or a subset by name:
+
+```bash
+python -m pytest tests/test_chat.py -q
+python -m pytest tests/test_validation.py::test_filter_values_are_bound_parameters_and_never_sql_text -q
+python -m pytest -k ambiguous -q
+```
+
+Install `backend/requirements.txt` first (step 2 above). The suite needs `pytest`,
+`fastapi` and `httpx` (for the in-process test client), plus `jsonschema` and
+`pandas` — the latter two because it loads the repository's real validators. Run
+it from `backend/`.
+
+`backend/pytest.ini` is the entire configuration:
+
+| Setting | Value | Effect |
+|---|---|---|
+| `testpaths` | `tests` | A bare `pytest` collects only this suite |
+| `pythonpath` | `.` | Puts `backend/` on `sys.path`, so `import app...` and `from tests.conftest import ...` resolve without installing the package |
+| `addopts` | `-ra` | Prints a summary of every non-passing test at the end of a run |
+
+There is no `conftest.py` at the repository root — the backend suite is
+self-contained. A full run currently reports `2 warnings`; both are third-party
+deprecations (`starlette`'s `httpx` shim and an `anyio` alias), not from this
+suite.
+
+### Credentials, network, and how the warehouse is replaced
+
+No Snowflake credentials and no network access are required, and none are used:
+`snowflake-connector-python` is imported lazily inside
+`SnowflakeWarehouseAdapter.execute()`, so the tests never import the driver, and
+`TestClient` drives the ASGI app in process — no server is started and no port is
+opened. Nothing is mocked at the socket level, and no environment variables are
+set: the "unconfigured warehouse" case is produced by constructing the fake with
+`configured=False` rather than by removing credentials.
+
+`tests/conftest.py` builds the real application and swaps dependencies through
+FastAPI's override mechanism:
+
+```python
+app = create_app()
+app.dependency_overrides[get_warehouse] = lambda: fake_warehouse
+```
+
+`FakeWarehouse` is an in-memory implementation of the same `WarehouseAdapter`
+interface (`name = "fake"`), not a mock — there is no `unittest.mock` and no
+monkeypatching anywhere in the suite. It records every `QueryPlan` it is asked to
+run in `executed_plans`, can report itself unconfigured (`configured=False`), and
+can be told to raise on execute (`raises=...`).
+
+Because only the adapter *implementation* is replaced, the tests exercise the
+real routes, the real governed registry, the real translation and compilation
+logic, and the real `analytics_validation` validators.
+
+| Fixture | Provides |
+|---|---|
+| `client` | The app with the warehouse faked. The **real** AI agent is used |
+| `stub_client` | The app with both the warehouse and the agent faked |
+| `unavailable_client` | A warehouse that reports itself unconfigured — the `503` path |
+| `failing_client` | A warehouse that raises `WarehouseError` on execute — the `502` path |
+| `fake_warehouse` | The `FakeWarehouse` instance, so a test can assert on `executed_plans` |
+| `stub_agent` | The `StubAgentAdapter`, returning canned agent output per question |
+
+`stub_client` overrides the agent service as well, which makes agent output
+deterministic:
+
+```python
+app.dependency_overrides[get_agent_service] = lambda: AgentService(adapter=stub_agent)
+```
+
+The split matters. Tests that verify warehouse-side behaviour use `stub_client`;
+tests that must prove the real integration works use `client`, so
+`test_chat_with_the_real_agent` and `test_real_agent_year_filter_becomes_a_governed_filter`
+drive `ai agent/query_builder.py` itself, loaded by file path because the
+directory name contains a space. The suite therefore needs the tracked
+`ai agent/` directory to be present in the checkout.
+
+### What the tests assert
+
+**The API contracts.** `/health` is asserted to serve the same health payload as
+`/api/v1/health`. Without credentials `status` becomes `"degraded"` while the
+response is still HTTP `200`. The metric
+catalogue returns exactly eight metrics, and each `formula` is asserted
+string-for-string against `docs/metric_dictionary.md`, so an accidental edit to a
+formula fails the suite. `Profit Margin` and `Average Order Value` are asserted
+`additive: false`. The five dimensions the dictionary does not govern are
+asserted `governed: false`, and the `MARKET = 'EU'` trap is asserted to be
+surfaced in the notes.
+
+**That raw SQL cannot be submitted.** `{"question": ..., "sql": ...}` returns
+`422 request_validation_error` with `details[].field == "sql"`, as do `query`,
+`measures_raw`, `filters_raw` and `governed_query` — `extra="forbid"` leaves no
+smuggling channel. The same is asserted for `POST /validate/query` and
+`POST /validate/data`.
+
+**That governed queries are built safely.** A hostile filter value
+(`United States' OR 1=1 --`) is asserted to appear in `plan.parameters` and *not*
+in `plan.sql` — that single test pins "values are bound, never interpolated".
+`in` filters bind one parameter per value (`f.MARKET IN (%s, %s)`) and `contains`
+binds `%New York%` rather than inlining it. Unknown measure, dimension, filter
+member and `order_by` member each raise `ValidationFailedError` before any SQL is
+built, and `validate_identifier` is asserted to reject lowercase names, `;`,
+`--`, dotted names, `1=1` and the empty string. The compiled table is qualified
+and upper-cased (`METRICMIND.MART.FACT_SALES`), a `dim_product` dimension adds a
+`LEFT JOIN`, a `dim_date` dimension casts `ORDER_DATE`, and `LIMIT` is clamped to
+`settings.max_result_rows`. The `Sales` → `Revenue` rename and the ordering
+decision are asserted to appear in `notes`, so nothing is inferred silently.
+
+**The three chat outcomes.** `answered` carries data, a deterministic answer
+string and full evidence. `ambiguous` and `unsupported` return `200` with an
+explanation and `data: []`, and the warehouse is asserted never to have been
+called (`executed_plans == []`) — no fallback SQL is generated from question
+text. The agent's `Discount` metric is asserted to be *refused*, because the
+dictionary governs no such metric even though the column exists.
+
+**Error handling.** Every error uses the one envelope
+`{"error": {code, message, details, correlation_id}}`. `503 configuration_error`
+names the missing settings and returns no `data` key. `502 warehouse_error`
+carries the generic message `"The warehouse query failed."` with no driver text.
+Error responses carry a non-empty `correlation_id`. The health payload is
+asserted not to contain `password`, `snowflake_account`, `account=`, `user=`,
+`token` or `secret`, and `warehouse` is asserted to have exactly five keys.
+
+**Validation normalisation.** The existing validators return three incompatible
+shapes; the tests assert each normalises into one report, and that an
+*unrecognised* shape **fails closed** — a changed validator contract can never be
+read as "valid". `checks_applied` versus `checks_skipped` is asserted too:
+governed column names do not match `DataValidator`'s name heuristics and the
+report must say so, while passing Cube-style member names (`Sales.Discount`)
+makes the check fire and produce `FLAGGED`. `combine()` must return the weaker of
+two reports. These tests import the private helpers `_normalize_schema_result`
+and `_normalize_data_result` deliberately; the module docstring explains that
+this is the only way to prove a tuple and a dict converge on the same report
+without a warehouse.
+
+### What is not covered
+
+Stated plainly so the suite is not read as broader than it is:
+
+- **No test connects to Snowflake.** `SnowflakeWarehouseAdapter.execute()` and
+  `to_json_safe()` are never executed, and nothing asserts that Snowflake accepts
+  the compiled SQL.
+- **The `504 warehouse_timeout` path has no test.** `WarehouseTimeoutError` and
+  its `_is_timeout_error` classification are only reachable with a live
+  warehouse, so only `502` and `503` are asserted.
+- **`CubeWarehouseAdapter` has no test.** The one Cube-related test asserts the
+  *payload shape* that `MetricValidator` validates, not the adapter.
+- **`build_warehouse()`'s backend selection is not asserted.**
 
 ---
 
