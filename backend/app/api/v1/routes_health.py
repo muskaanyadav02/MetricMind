@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 
 from app.adapters.warehouse import WarehouseAdapter, get_warehouse
 from app.config import Settings, get_settings
-from app.schemas.common import HealthResponse, WarehouseSummary
+from app.schemas.common import ErrorResponse, HealthResponse, WarehouseSummary
 from app.services.agent_service import AgentService, get_agent_service
 from app.services.metric_service import GovernedRegistry, get_metric_service
 
@@ -61,6 +61,13 @@ def _build_health_response(
         "warehouse is configured, and the size of the governed registry. "
         "Contains no credentials. Always returns 200; check the 'status' field."
     ),
+    responses={
+        200: {"description": "Service status summary. 'ok' when all dependencies are usable, 'degraded' otherwise."},
+        500: {
+            "model": ErrorResponse,
+            "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+        },
+    },
 )
 def health(
     agent: AgentService = Depends(get_agent_service),

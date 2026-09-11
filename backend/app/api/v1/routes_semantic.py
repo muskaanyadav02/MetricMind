@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.schemas.common import ErrorResponse
 from app.schemas.semantic import DimensionCatalogResponse, MetricCatalogResponse
 from app.services.metric_service import (
     DIMENSION_GOVERNANCE_NOTES,
@@ -30,6 +31,12 @@ router = APIRouter(tags=["semantic"])
         "with the exact formula each is computed from. Formulas are quoted from that "
         "document; none are invented here."
     ),
+    responses={
+        500: {
+            "model": ErrorResponse,
+            "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+        },
+    },
 )
 def list_metrics(
     registry: GovernedRegistry = Depends(get_metric_service),
@@ -52,6 +59,12 @@ def list_metrics(
         "are governed by docs/metric_dictionary.md; categorical dimensions come from the "
         "physical dbt marts and are returned with governed=false."
     ),
+    responses={
+        500: {
+            "model": ErrorResponse,
+            "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+        },
+    },
 )
 def list_dimensions(
     registry: GovernedRegistry = Depends(get_metric_service),

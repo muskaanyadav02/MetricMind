@@ -34,6 +34,7 @@ from app.schemas.chat import (
     ChatQueryResponse,
     SupportingEvidence,
 )
+from app.schemas.common import ErrorResponse
 from app.schemas.semantic import GovernedQuery
 from app.schemas.validation import ValidationReport
 from app.services.agent_service import AgentInterpretation, AgentService, get_agent_service
@@ -101,10 +102,23 @@ def _skipped_validation(reason: str) -> ValidationReport:
         "'ambiguous' rather than a guessed query."
     ),
     responses={
-        422: {"description": "The question could not be supported, or the request payload was invalid."},
-        502: {"description": "The warehouse returned an error."},
-        503: {"description": "The warehouse is not configured, or the agent module is unavailable."},
-        504: {"description": "The warehouse query timed out."},
+        200: {"description": "Answered, ambiguous, or unsupported — all three are valid outcomes."},
+        422: {
+            "model": ErrorResponse,
+            "description": "Malformed request body (request_validation_error), or the governed payload failed schema validation (validation_failed).",
+        },
+        502: {
+            "model": ErrorResponse,
+            "description": "The warehouse returned an error (warehouse_error), or the agent could not interpret the question (agent_error).",
+        },
+        503: {
+            "model": ErrorResponse,
+            "description": "The warehouse is not configured (configuration_error), or the agent module could not be loaded (agent_unavailable).",
+        },
+        504: {
+            "model": ErrorResponse,
+            "description": "The warehouse query exceeded WAREHOUSE_TIMEOUT_SECONDS (warehouse_timeout).",
+        },
     },
 )
 def chat_query(

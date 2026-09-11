@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.errors import ValidationFailedError
 from app.core.logging import get_logger
+from app.schemas.common import ErrorResponse
 from app.schemas.validation import (
     ValidateDataRequest,
     ValidateDataResponse,
@@ -38,6 +39,16 @@ router = APIRouter(tags=["validation"])
         "would compile to. The payload may only reference governed metrics and "
         "dimensions; unknown names are reported rather than executed."
     ),
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Malformed request body (request_validation_error) — e.g. a payload referencing an unknown measure.",
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+        },
+    },
 )
 def validate_query(
     request: ValidateQueryRequest,
@@ -81,6 +92,16 @@ def validate_query(
         "Cube-style member names before auditing, which is required for DataValidator's "
         "discount and negative-sales heuristics to match at all."
     ),
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Malformed request body (request_validation_error).",
+        },
+        500: {
+            "model": ErrorResponse,
+            "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+        },
+    },
 )
 def validate_data(
     request: ValidateDataRequest,
