@@ -24,7 +24,7 @@ from app.core.logging import (
     get_logger,
     new_correlation_id,
 )
-from app.schemas.common import HealthResponse
+from app.schemas.common import ErrorResponse, HealthResponse
 
 logger = get_logger(__name__)
 
@@ -94,6 +94,13 @@ def create_app() -> FastAPI:
         response_model=HealthResponse,
         tags=["health"],
         summary="Alias of /api/v1/health",
+        responses={
+            200: {"description": "Service status summary. 'ok' when all dependencies are usable, 'degraded' otherwise."},
+            500: {
+                "model": ErrorResponse,
+                "description": "Unexpected internal error, rendered in the standard error envelope (internal_error).",
+            },
+        },
     )
 
     @app.get("/", include_in_schema=False)
