@@ -510,46 +510,204 @@ the reason, rather than being counted as passed.
 
 ---
 
-## Architecture
+## Architecture and request flow
 
-```
-backend/
-  app/
-    main.py                    FastAPI app factory, CORS, exception handlers
-    config.py                  pydantic-settings configuration
-    api/v1/
-      router.py                aggregates the route modules
-      routes_health.py         GET /health
-      routes_semantic.py       GET /metrics, GET /dimensions
-      routes_chat.py           POST /chat/query
-      routes_validation.py     POST /validate/query, /validate/data
-    schemas/                   pydantic request/response models
-    services/
-      metric_service.py        the governed registry (8 metrics, 17 dimensions)
-      agent_service.py         wraps the AI agent adapter
-      query_service.py         translation, compilation, execution, answer text
-      validation_service.py    normalises the existing validators
-    adapters/
-      agent_loader.py          loads "ai agent/" despite the space in its name
-      warehouse.py             WarehouseAdapter interface + Snowflake implementation
-      cube_client.py           Cube adapter placeholder (reports unconfigured)
-    core/
-      errors.py                error taxonomy + handlers
-      logging.py               correlation ids
-  tests/                       no Snowflake credentials required
+### Current backend layers
+
+The running backend is a synchronous FastAPI application assembled by
+`app/main.py`. `create_app()` loads cached environment configuration, configures
+logging and CORS, installs correlation-id middleware and the shared exception
+handlers, then mounts the v1 router under `API_V1_PREFIX` (default `/api/v1`).
+Importing the application does not open a warehouse connection.
+
+```text
+HTTP request
+  -> FastAPI app (`app/main.py`): CORS, correlation id, error envelope
+  -> API router (`app/api/v1/`): request parsing and endpoint orchestration
+  -> Pydantic schemas (`app/schemas/`): public request/response contracts
+  -> services (`app/services/`): registry, translation, compilation, validation
+  -> adapters (`app/adapters/`): local agent loading or warehouse I/O
+       -> `ai agent/` deterministic query builder
+       -> Snowflake dbt MART tables (chat execution only)
+  -> Pydantic response -> HTTP response
+
+Validation service -> `analytics_validation/validation/`
+Cube adapter       -> placeholder only; no Cube runtime exists
 ```
 
-### Swapping the warehouse or the semantic layer
+The layers implemented today are:
 
-`app/adapters/warehouse.py` defines `WarehouseAdapter`. `SnowflakeWarehouseAdapter`
-implements it today; `CubeWarehouseAdapter` is a placeholder that reports itself
-unconfigured so no caller can mistake it for working. When Cube.dev lands, the
-new adapter implements the same interface and `build_warehouse()` selects it —
-**no route, schema or service changes are required**.
+- **API/router:** `api/v1/router.py` combines the health, semantic catalogue,
+  chat and validation route modules. Route functions use `Depends(...)` to
+  obtain services, adapters, the governed registry and settings; they contain
+  orchestration rather than warehouse-specific code.
+- **Schemas:** `schemas/common.py`, `chat.py`, `semantic.py` and `validation.py`
+  define Pydantic request, response, catalogue, governed-query and validation
+  contracts. Request models forbid unknown fields, so clients cannot submit raw
+  SQL through an extra key.
+- **Services:** `metric_service.py` owns the in-process registry sourced from the
+  repository dictionaries and dbt marts. `agent_service.py` normalises the local
+  agent output. `query_service.py` translates agent output, compiles governed
+  queries, executes compiled plans and formats deterministic answer text.
+  `validation_service.py` calls and normalises the existing validators.
+- **Adapters/infrastructure:** `agent_loader.py` loads the non-package
+  `ai agent/` modules by file path. `warehouse.py` defines `WarehouseAdapter`,
+  selects a backend, compiles safe qualified identifiers and implements actual
+  Snowflake execution. `cube_client.py` implements the interface only as a
+  refusing placeholder.
+- **Core configuration, logging and errors:** `app/config.py` reads and caches
+  environment-backed settings without connecting to a dependency.
+  `core/logging.py` configures logging and request correlation ids.
+  `core/errors.py` maps application, Pydantic, HTTP and unexpected exceptions to
+  the common error envelope; sensitive warehouse exceptions remain server-side.
+- **AI agent integration:** the current `ai agent/query_builder.py` is a local,
+  deterministic keyword matcher, not an LLM. Its dictionary is preserved as
+  evidence, then explicitly mapped onto the governed registry by
+  `translate_agent_output()`; it neither compiles nor executes SQL itself.
+- **Warehouse integration:** the active implementation is direct Snowflake
+  access to dbt `MART` models through `SnowflakeWarehouseAdapter`. A connection
+  is attempted only by chat execution. The adapter executes only a `QueryPlan`
+  produced by the governed compiler and converts warehouse-native values for
+  JSON responses.
+- **Validation integration:** `validation_service.py` loads
+  `analytics_validation/validation/metric_validation.py` and
+  `data_validation.py` by file path. It calls their actual public methods and
+  normalises their differing result shapes into `ValidationReport`; it does not
+  use `ai agent/validator.py`.
 
-`app/services/metric_service.py` is likewise plain data plus lookups
-(`GovernedRegistry`). A Cube-backed registry can replace `get_metric_service()`
-without touching the API surface.
+### Dependency injection and adapter boundaries
+
+FastAPI dependency injection is used at route and service boundaries. For
+example, `chat_query()` receives `AgentService`, `QueryService`,
+`ValidationService` and `Settings`; `get_query_service()` in turn receives a
+`WarehouseAdapter`, `GovernedRegistry` and `Settings`. `get_warehouse()` calls
+`build_warehouse()` to select Snowflake or the Cube placeholder. Health routes
+also depend directly on the agent, registry, settings and warehouse interface.
+The catalogue routes depend only on the registry, while `/validate/data`
+depends only on the validation service.
+
+This separation is exercised by tests: `app.dependency_overrides` replaces
+`get_warehouse` with an in-memory `FakeWarehouse` and can replace
+`get_agent_service` with a stub, while the real routes, schemas, services,
+compiler and validation integration continue to run.
+
+### Endpoint request/data flows
+
+#### `GET /api/v1/health`
+
+1. FastAPI resolves `AgentService`, the selected `WarehouseAdapter`, the shared
+   `GovernedRegistry` and `Settings`.
+2. The route checks whether the local agent module loads and whether the selected
+   warehouse reports itself configured. This is a configuration/readiness check;
+   it does not connect to Snowflake.
+3. It returns agent vocabulary, safe warehouse metadata and registry counts.
+   The status is `ok` only when both agent and warehouse are usable; otherwise it
+   is `degraded`. `/health` calls the same response builder.
+
+#### `GET /api/v1/metrics` and `GET /api/v1/dimensions`
+
+1. FastAPI injects the process-wide `GovernedRegistry`.
+2. The routes read the in-memory metric or dimension definitions and governance
+   notes from `metric_service.py`.
+3. Pydantic serialises the catalogue response. No agent, validator or warehouse
+   is called.
+
+#### `POST /api/v1/chat/query`
+
+```text
+ChatQueryRequest
+  -> AgentService -> LocalAgentAdapter -> `ai agent/query_builder.py`
+  -> AgentInterpretation
+  -> translate_agent_output() + GovernedRegistry
+       -> ambiguous/unsupported response, with no execution; OR
+       -> GovernedQuery
+  -> ValidationService.validate_governed_query()
+       -> Cube-shaped payload -> MetricValidator (schema check only)
+  -> QueryService.execute()
+       -> compile_governed_query() -> parameterised QueryPlan
+       -> WarehouseAdapter.require_configured()
+       -> SnowflakeWarehouseAdapter.execute()
+  -> ValidationService.validate_rows() -> DataValidator
+  -> combine validation reports + deterministic result summary
+  -> ChatQueryResponse with rows and supporting evidence
+```
+
+The request body is first validated as `ChatQueryRequest`; unknown keys and
+invalid question/limit values fail before the handler runs. The agent adapter
+returns its rule-based interpretation unchanged, and `AgentService` extracts a
+normalised view. `translate_agent_output()` then checks that the interpreted
+metric, optional dimension and operation can be represented by the registry. It
+records aliases and other translation decisions, builds a `GovernedQuery`, or
+returns an `ambiguous`/`unsupported` outcome without calling the warehouse.
+
+For an executable query, `MetricValidator` validates the governed query rendered
+in Cube's payload shape. This validates payload structure; it neither proves that
+Cube is running nor executes a query. The compiler separately resolves every
+measure, dimension, filter and ordering member against the registry, adds the
+required dbt-mart joins, validates SQL identifiers, binds filter values as
+parameters and clamps the limit. `QueryService.execute()` then checks warehouse
+configuration and sends that compiled `QueryPlan` to the selected adapter. The
+Snowflake adapter is the only current adapter that can return rows.
+
+Returned rows are audited with `DataValidator`; schema and data reports are
+combined but a flagged data report does not discard the rows. The endpoint
+builds deterministic answer text and returns the rows plus evidence containing
+the agent output, governed query, source model, translation notes and validation
+report.
+
+#### `POST /api/v1/validate/query`
+
+1. Pydantic parses `ValidateQueryRequest`, including its `GovernedQuery` payload.
+2. `ValidationService` renders the payload in Cube-style shape and invokes
+   `MetricValidator.validate_agent_query`, then normalises its result.
+3. Only when that report is valid, `QueryService.compile()` resolves registry
+   members and returns a parameterised SQL preview. A registry/compilation error
+   changes the report to `FAIL`.
+4. The endpoint returns the report, SQL preview and parameters. It never calls
+   `WarehouseAdapter.require_configured()` or `execute()`, so it requires no
+   warehouse credentials and performs no warehouse I/O.
+
+#### `POST /api/v1/validate/data`
+
+1. Pydantic parses rows and optional member names as `ValidateDataRequest`; an
+   empty row list returns a failed report immediately.
+2. `ValidationService.validate_rows()` optionally maps row keys to the supplied
+   Cube-style member names, then passes only those supplied rows to
+   `DataValidator.validate_cube_output` and normalises the result.
+3. The response states which heuristic checks ran or were skipped. It neither
+   compiles a query nor reads from the warehouse.
+
+### Validation versus compilation and execution
+
+These are separate operations in the current code:
+
+| Operation | Current implementation | Warehouse access? |
+|---|---|---|
+| Query schema validation | `ValidationService.validate_governed_query()` renders a `GovernedQuery` as a Cube-shaped dictionary and calls `MetricValidator` | No |
+| Query compilation | `QueryService.compile()` / `compile_governed_query()` resolves registry definitions and produces parameterised Snowflake SQL in a `QueryPlan` | No |
+| Warehouse execution | `QueryService.execute()` compiles, checks configuration and calls `WarehouseAdapter.execute()`; Snowflake opens the connection and runs the plan | **Yes** |
+| Data/result validation | `ValidationService.validate_rows()` calls `DataValidator` on rows already returned by chat or supplied to `/validate/data` | No additional access |
+
+Consequently, `/validate/query` validates and compiles but does not execute;
+`/validate/data` validates caller-supplied rows but does not compile or execute;
+and `/chat/query` is the only documented endpoint that performs all three stages
+and can access Snowflake.
+
+### Current implementation and placeholders
+
+- **Current:** FastAPI, the in-process governed registry, deterministic local
+  agent, governed Snowflake SQL compiler, direct Snowflake adapter, and the two
+  validators under `analytics_validation/validation/`.
+- **Placeholder/future:** `cube/` currently contains documentation only.
+  `CubeWarehouseAdapter` always reports itself unconfigured and refuses
+  execution; `CUBE_API_URL` and `CUBE_API_TOKEN` do not make it operational.
+  Cube-shaped governed payloads and catalogue member names are compatibility
+  structures used by validation and future integration, not evidence of a live
+  Cube runtime.
+- **Future seam, not current behavior:** `WarehouseAdapter` and
+  `build_warehouse()` provide a replacement boundary for a future Cube
+  implementation. The current `GovernedRegistry` is static in-process data;
+  there is no Cube-backed registry today.
 
 ---
 
