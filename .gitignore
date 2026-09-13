@@ -227,3 +227,4 @@ ai_agent/
 
 # Freebuff
 .freebuff/
+node_modules/

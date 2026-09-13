@@ -1,31 +1,15 @@
 export function formatCurrency(value) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
+  return `₹${Number(value).toLocaleString("en-IN")}`;
 }
 
-export function formatNumber(value) {
-  return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
-}
-
-export function formatPercent(value) {
-  return `${Number(value || 0).toFixed(1)}%`
-}
-
-export function shortCurrency(value) {
-  const number = Number(value) || 0
-
-  if (Math.abs(number) >= 1000000) {
-    return `₹${(number / 1000000).toFixed(1)}M`
+export function formatCompact(value) {
+  if (value >= 100000) {
+    return `₹${(value / 100000).toFixed(1)}L`;
   }
 
-  if (Math.abs(number) >= 1000) {
-    return `₹${(number / 1000).toFixed(1)}K`
+  if (value >= 1000) {
+    return `₹${(value / 1000).toFixed(1)}K`;
   }
 
-  return `₹${number.toFixed(0)}`
+  return `₹${value}`;
 }
