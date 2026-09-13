@@ -264,6 +264,7 @@ Returns `200`. These are plain registry lookups — no warehouse access.
 |---|---|
 | `200` | Success. For `chat/query`, ambiguous and unsupported are also 200 — they are valid outcomes, not errors |
 | `422` | Request payload invalid (`request_validation_error`), or on `chat/query`, the governed payload failed schema validation (`validation_failed`) |
+| `500` | Any endpoint — an unhandled exception (`internal_error`). The message is generic and the exception detail stays server-side, in the log line carrying the same `correlation_id` |
 | `502` | `chat/query` only — the warehouse returned an error (`warehouse_error`), or the agent failed to interpret the question (`agent_error`) |
 | `503` | `chat/query` only — warehouse not configured (`configuration_error`), or the agent module could not be loaded (`agent_unavailable`) |
 | `504` | `chat/query` only — the warehouse query exceeded `WAREHOUSE_TIMEOUT_SECONDS` (`warehouse_timeout`) |
@@ -284,6 +285,14 @@ Every error, on every endpoint, uses one envelope:
 `correlation_id` also appears in the server log, so a support request can be
 traced. Messages never contain credentials — the health payload and every error
 are covered by tests that assert this.
+
+The same id is returned in the `X-Correlation-ID` header on every response, so a
+client can quote it without parsing the body; an id supplied on the request in
+that header is adopted rather than replaced. One gap, recorded in the test
+rather than fixed: on an unhandled `500` the middleware never sees a response,
+so the header is not echoed — the id is still in the body and in the server log,
+so traceability holds. Every route's documented response models and error
+statuses are contract-tested in `tests/test_openapi_contract.py`.
 
 ---
 
@@ -440,6 +449,7 @@ did and did not check.
 |---|---|
 | `200` | Answered, ambiguous, or unsupported — all three are valid outcomes |
 | `422` | Malformed request body, or the governed payload failed schema validation |
+| `500` | An unhandled exception. The message is generic; the detail stays in the server log under the same `correlation_id` |
 | `502` | The warehouse returned an error |
 | `503` | The warehouse is not configured, or the agent module could not be loaded |
 | `504` | The warehouse query exceeded `WAREHOUSE_TIMEOUT_SECONDS` |
@@ -724,9 +734,12 @@ this service.
 | `tests/test_metrics.py` | 8 | `GET /api/v1/metrics` and `GET /api/v1/dimensions` — counts, formulas pinned to `docs/metric_dictionary.md`, additivity flags, the agent/dictionary conflict, each dimension's source model and column |
 | `tests/test_chat.py` | 20 | `POST /api/v1/chat/query` end to end — answered, ambiguous and unsupported outcomes, the evidence payload, invalid request bodies, raw-SQL rejection, warehouse `502` and `503` |
 | `tests/test_validation.py` | 48 | Agent-output translation, governed-query compilation, validation-result normalisation, and both validation endpoints |
+| `tests/test_openapi_contract.py` | 15 | The generated OpenAPI schema — that each route documents its real response model, that every declared non-`200` response with a JSON body uses the one error envelope, that the chat endpoint names all seven of its documented error codes, and that a handled error echoes the correlation id in both the header and the body |
 
-81 tests in total. `tests/conftest.py` holds the fixtures and the fakes, and
-contains no tests itself.
+96 tests in total. The count is of *collected* tests, so a parametrised case
+counts once per case — `tests/test_openapi_contract.py` holds 12 test functions,
+three of which are parametrised. `tests/conftest.py` holds the fixtures and the
+fakes, and contains no tests itself.
 
 ### Running the tests
 
@@ -857,6 +870,24 @@ carries the generic message `"The warehouse query failed."` with no driver text.
 Error responses carry a non-empty `correlation_id`. The health payload is
 asserted not to contain `password`, `snowflake_account`, `account=`, `user=`,
 `token` or `secret`, and `warehouse` is asserted to have exactly five keys.
+
+**That the published API docs match the code.** `tests/test_openapi_contract.py`
+reads `app.openapi()` rather than making requests, so a failure there means the
+interactive docs disagree with the routes. Every route's `200` is asserted to
+name its real response model (`HealthResponse`, `ChatQueryResponse`,
+`ValidateQueryResponse`, …), and every declared non-`200` status that documents
+a JSON body is asserted to resolve to `ErrorResponse` rather than an ad-hoc
+shape. A fixed set of seven codes is asserted to be named in the chat endpoint's
+documented descriptions (`request_validation_error`, `validation_failed`,
+`warehouse_error`, `agent_error`, `configuration_error`, `agent_unavailable`,
+`warehouse_timeout`), so typo'ing one out of a route description fails the suite
+here rather than in the published docs. The envelope's own schema is pinned too
+— `ErrorBody` requires exactly `code` and `message`. Correlation-id
+echoing is asserted for a *handled* error: a `503` must carry both the
+`X-Correlation-ID` header and the body id. The unhandled-`500` case asserts the
+body id is present and records in a comment that the header is not echoed — a
+known gap that is documented rather than fixed, and whose absence is not itself
+asserted.
 
 **Validation normalisation.** The existing validators return three incompatible
 shapes; the tests assert each normalises into one report, and that an
