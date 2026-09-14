@@ -1,18 +1,27 @@
 from query_builder import build_query
 from validator import validate_query
-from semantic_client import execute_query
 
 
 def process_question(question):
     """
-    Process a user's natural-language question.
+    Process a natural-language business question.
 
     Flow:
-    1. Convert the question into a structured query.
-    2. Check for ambiguity.
+    1. Build a structured semantic query.
+    2. Check ambiguity.
     3. Validate the structured query.
-    4. If valid, send it to the semantic layer client.
+    4. Return the validated agent output.
     """
+
+    if not isinstance(question, str) or not question.strip():
+        return {
+            "query": {},
+            "validation": {
+                "valid": False,
+                "errors": ["Question cannot be empty."]
+            },
+            "response": "Please provide a business question."
+        }
 
     # Step 1: Build structured query
     structured_query = build_query(question)
@@ -23,18 +32,12 @@ def process_question(question):
     if ambiguity.get("ambiguous", False):
         possible_metrics = ambiguity.get("possible_metrics", [])
 
-        if possible_metrics:
-            response = (
-                "Your question is ambiguous. "
-                "Please specify which metric you mean: "
-                + ", ".join(possible_metrics)
-                + "."
-            )
-        else:
-            response = (
-                "Your question is ambiguous. "
-                "Please provide more details."
-            )
+        response = (
+            "Your question is ambiguous. "
+            "Please specify which metric you mean: "
+            + ", ".join(possible_metrics)
+            + "."
+        )
 
         return {
             "query": structured_query,
@@ -45,16 +48,16 @@ def process_question(question):
             "response": response
         }
 
-    # Step 3: Validate query
+    # Step 3: Validate structured query
     validation_result = validate_query(structured_query)
 
     if not validation_result["valid"]:
         errors = validation_result.get("errors", [])
 
-        if errors:
-            response = "I could not process this question. " + " ".join(errors)
-        else:
-            response = "I could not process this question."
+        response = (
+            "I could not process this question. "
+            + " ".join(errors)
+        )
 
         return {
             "query": structured_query,
@@ -62,12 +65,10 @@ def process_question(question):
             "response": response
         }
 
-    # Step 4: Send valid query to semantic layer
-    semantic_result = execute_query(structured_query)
-
     return {
         "query": structured_query,
         "validation": validation_result,
-        "semantic_result": semantic_result,
-        "response": "Query is valid and ready for the semantic layer."
+        "response": (
+            "Query is valid and ready for the governed semantic layer."
+        )
     }
