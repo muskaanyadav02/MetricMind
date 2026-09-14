@@ -222,3 +222,6 @@ __marimo__/
 cube/.env
 
 cube/.env
+
+cube/FactSales_backup.js
+data/*.csv
