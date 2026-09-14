@@ -1,6 +1,17 @@
 # AI Agent
 
-The AI Agent is responsible for understanding user questions, identifying the required business metrics and dimensions, and generating structured queries for the Cube.dev Semantic Layer.
+The AI Agent is responsible for understanding natural-language business questions and converting them into structured semantic queries for the MetricMind governed semantic layer.
+
+## Responsibilities
+
+- Identify business metrics from user questions.
+- Identify business dimensions.
+- Detect year-based filters.
+- Identify supported operations such as total, highest, lowest, and compare.
+- Detect ambiguous questions.
+- Validate structured agent queries.
+- Prevent unsupported metrics and operations from being passed forward.
+- Produce structured output instead of raw SQL.
 
 ## Technologies
 
@@ -9,15 +20,35 @@ The AI Agent is responsible for understanding user questions, identifying the re
 - Llama 3
 - Cube.dev API
 
-## Planned Workflow
+## Agent Workflow
 
 User Question
-→ AI Agent
 → Intent and Metric Identification
-→ Cube.dev Semantic Query
+→ Structured Semantic Query
+→ Query Validation
+→ Governed Semantic Layer
 → Query Result
-→ AI-generated Business Response
+→ Business Response
 
-## Current Status
+## Structured Query Format
 
-Initial AI Agent foundation is under development.
+The agent produces structured output containing:
+
+- Question
+- Metric
+- Dimension
+- Filters
+- Operation
+- Ambiguity information
+
+Example:
+
+```text
+Question:
+"Show revenue by country in 2024"
+
+Structured Query:
+Metric: Revenue
+Dimension: Country
+Filter: Year = 2024
+Operation: None
