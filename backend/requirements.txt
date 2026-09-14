@@ -1,0 +1,37 @@
+# MetricMind backend dependencies.
+#
+# Install from the repository root:
+#     pip install -r backend/requirements.txt
+#
+# The backend does NOT require Snowflake credentials to import, start or be
+# tested. snowflake-connector-python is imported lazily, inside the Snowflake
+# adapter's execute() method, so a machine without it can still run the API and
+# the whole test suite.
+
+# --- Web framework ---------------------------------------------------------
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+
+# --- Validation / configuration -------------------------------------------
+pydantic>=2.6,<3.0
+pydantic-settings>=2.2,<3.0
+
+# --- Warehouse driver ------------------------------------------------------
+# Only imported when WAREHOUSE_BACKEND=snowflake and a query is actually run.
+snowflake-connector-python>=3.7,<4.0
+
+# --- Required by the repository's existing validators ----------------------
+# backend/app/services/validation_service.py loads these modules by file path:
+#   analytics_validation/validation/metric_validation.py  -> imports jsonschema
+#   analytics_validation/validation/data_validation.py    -> imports pandas
+# These are also listed in the repository-root requirements.txt. They are
+# repeated here so the backend is installable on its own.
+jsonschema>=4.0
+pandas>=2.0
+
+# --- Test client -----------------------------------------------------------
+# fastapi.testclient requires httpx; it is a test dependency, not a runtime one.
+httpx>=0.27,<1.0
+
+# --- Tests -----------------------------------------------------------------
+pytest>=8.0,<9.0
