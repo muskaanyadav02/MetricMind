@@ -12,26 +12,68 @@ import "./AskAI.css";
 function AskAI() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const askQuestion = (text = question) => {
+  const askQuestion = async (text = question) => {
     const clean = text.trim();
 
-    if (!clean) return;
+    if (!clean || loading) return;
 
+    // Show user's question immediately
     setMessages((prev) => [
       ...prev,
       {
         type: "user",
         text: clean,
       },
-      {
-        type: "ai",
-        text:
-          "Based on the current business dataset, I can analyze sales, profit, quantity, categories, products, regions and trends. Connect the backend AI agent to return live analytical results.",
-      },
     ]);
 
     setQuestion("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/chat/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: clean,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.detail || "The backend could not process the question."
+        );
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          text:
+            result.answer ||
+            result.message ||
+            "I could not find an answer for this question.",
+        },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "ai",
+          text:
+            "I couldn't connect to the MetricMind backend. Please make sure the backend is running.",
+        },
+      ]);
+
+      console.error("MetricMind API error:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const suggestions = [
@@ -65,7 +107,7 @@ function AskAI() {
               <strong>MetricMind AI</strong>
               <span>
                 <i />
-                Online
+                {loading ? "Thinking..." : "Online"}
               </span>
             </div>
           </div>
@@ -110,6 +152,19 @@ function AskAI() {
                 </div>
               ))
             )}
+
+            {loading && (
+              <div className="message ai">
+                <div className="message-icon">
+                  <Bot size={14} />
+                </div>
+
+                <div className="message-content">
+                  <strong>MetricMind AI</strong>
+                  <p>Analyzing your business question...</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="chat-input-area">
@@ -122,10 +177,14 @@ function AskAI() {
                 }
               }}
               placeholder="Ask a question about your business..."
+              disabled={loading}
             />
 
-            <button onClick={() => askQuestion()}>
-              Ask
+            <button
+              onClick={() => askQuestion()}
+              disabled={loading}
+            >
+              {loading ? "Thinking..." : "Ask"}
               <ArrowRight size={14} />
             </button>
           </div>
@@ -145,6 +204,7 @@ function AskAI() {
               <button
                 key={suggestion}
                 onClick={() => askQuestion(suggestion)}
+                disabled={loading}
               >
                 <Sparkles size={14} />
                 {suggestion}
