@@ -1,0 +1,16 @@
+cubes:
+  - name: orders
+    sql: SELECT * FROM read_csv_auto('data/global_superstore_raw.csv')
+
+    measures:
+      - name: count
+        type: count
+
+    dimensions:
+      - name: category
+        sql: category
+        type: string
+
+      - name: city
+        sql: city
+        type: string

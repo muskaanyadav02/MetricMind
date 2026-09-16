@@ -1,0 +1,95 @@
+[
+  {
+    "id": "TC-001",
+    "category": "Root Cause Analysis",
+    "user_prompt": "Why did our European profits drop last quarter?",
+    "expected_measures": ["Sales.Profit", "Sales.Sales"],
+    "expected_dimensions": ["Sales.Region"],
+    "expected_filters": [
+      {
+        "member": "Sales.Region",
+        "operator": "equals",
+        "values": ["Europe"]
+      }
+    ],
+    "expected_time_dimensions": [
+      {
+        "dimension": "Sales.Order.Date",
+        "granularity": "quarter"
+      }
+    ]
+  },
+  {
+    "id": "TC-002",
+    "category": "Time Series Aggregation",
+    "user_prompt": "Show me total sales and profit by Year and Market",
+    "expected_measures": ["Sales.Sales", "Sales.Profit"],
+    "expected_dimensions": ["Sales.Year", "Sales.Market"],
+    "expected_filters": [],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-003",
+    "category": "Categorical Breakdown",
+    "user_prompt": "Which Sub.Category generated the highest profit in APAC?",
+    "expected_measures": ["Sales.Profit"],
+    "expected_dimensions": ["Products.Sub.Category", "Sales.Region"],
+    "expected_filters": [
+      {
+        "member": "Sales.Region",
+        "operator": "equals",
+        "values": ["APAC"]
+      }
+    ],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-004",
+    "category": "Shipping Analysis",
+    "user_prompt": "Compare total Shipping.Cost and Discount by Ship.Mode",
+    "expected_measures": ["Sales.Shipping.Cost", "Sales.Discount"],
+    "expected_dimensions": ["Sales.Ship.Mode"],
+    "expected_filters": [],
+    "expected_time_dimensions": []
+  },
+  {
+    "id": "TC-005",
+    "category": "Out of Scope Guardrail",
+    "user_prompt": "What is the average salary of our warehouse workers?",
+    "expected_measures": [],
+    "expected_dimensions": [],
+    "expected_filters": [],
+    "expected_time_dimensions": [],
+    "is_out_of_scope": true
+  },
+  {
+    "id": "q1",
+    "question": "What is the total revenue for 2026?",
+    "expected_sql": "SELECT SUM(revenue) FROM sales_data WHERE YEAR(date) = 2026",
+    "expected_columns": ["sum_revenue"]
+  },
+  {
+    "id": "q2",
+    "question": "Show top 5 active users by transaction count",
+    "expected_sql": "SELECT user_id, COUNT(*) as tx_count FROM transactions GROUP BY user_id ORDER BY tx_count DESC LIMIT 5",
+    "expected_columns": ["user_id", "tx_count"]
+  },
+  {
+    "id": "q_step_01",
+    "category": "multi_step_aggregation",
+    "question": "Calculate monthly revenue and rank top performing regions for 2026",
+    "steps": [
+      {
+        "step_number": 1,
+        "description": "Filter sales data for year 2026",
+        "expected_sql": "SELECT * FROM sales WHERE year = 2026"
+      },
+      {
+        "step_number": 2,
+        "description": "Group by region and calculate total revenue",
+        "expected_sql": "SELECT region, SUM(revenue) as total_rev FROM sales WHERE year = 2026 GROUP BY region ORDER BY total_rev DESC",
+        "expected_columns": ["region", "total_rev"]
+      }
+    ]
+  }
+]

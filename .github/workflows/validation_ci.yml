@@ -1,0 +1,50 @@
+name: MetricMind Analytics Validation CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Benchmark Validation
+      env:
+        PYTHONPATH: .
+      run: python -m analytics_validation.validation.test_benchmark_cases
+
+    - name: Generate Validation Report
+      env:
+        PYTHONPATH: .
+      run: python -m analytics_validation.reports.generate_report
+
+    - name: Generate Validation Report
+      env:
+        PYTHONPATH: .
+      run: python -m analytics_validation.reports.generate_report
+
+    - name: Upload Report Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: validation-summary-report
+        path: |
+          analytics_validation/reports/validation_summary.md
+          analytics_validation/reports/validation_chart.png
+ 
+        
