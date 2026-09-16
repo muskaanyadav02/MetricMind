@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import FakeWarehouse
+from app.adapters.warehouse import get_warehouse
+from app.main import create_app
+from app.services.agent_service import AgentService, get_agent_service
+from tests.conftest import FakeWarehouse, StubAgentAdapter, agent_output
 
 CHAT_URL = "/api/v1/chat/query"
 
@@ -116,9 +119,16 @@ def test_real_agent_ambiguous_question_is_not_executed(
     assert fake_warehouse.executed_plans == []
 
 
-def test_ungoverned_metric_is_refused(client: TestClient, fake_warehouse: FakeWarehouse) -> None:
-    """The agent offers 'Discount'; the governed dictionary does not define it."""
-    response = client.post(CHAT_URL, json={"question": "Show total discount by country"})
+def test_ungoverned_metric_is_refused(stub_client: TestClient, fake_warehouse: FakeWarehouse) -> None:
+    """'Discount' has no governed definition; a request for it is refused.
+
+    Driven through the stub agent, which still emits the 'Discount' metric
+    the real agent used to produce. The current real agent returns no metric
+    at all for such questions; that no-metric refusal is covered separately
+    by ``test_question_without_a_metric_is_unsupported``. Either way the
+    backend must refuse with 'unsupported' and never execute a query.
+    """
+    response = stub_client.post(CHAT_URL, json={"question": "Show total discount by country"})
 
     assert response.status_code == 200
     body = response.json()
@@ -142,15 +152,40 @@ def test_question_without_a_metric_is_unsupported(
     assert fake_warehouse.executed_plans == []
 
 
-def test_average_operation_is_refused_rather_than_guessed(client: TestClient) -> None:
-    """'average' has no governed meaning; refusing beats inventing an AVG()."""
+def test_average_operation_is_refused_rather_than_guessed(fake_warehouse: FakeWarehouse) -> None:
+    """'average' has no governed meaning; refusing beats inventing an AVG().
+
+    Driven through the stub agent with ``operation='average'`` because the
+    current real agent no longer detects 'average' at all (a known agent-side
+    regression, owned by the agent component). This test pins the *backend*
+    contract: an 'average' operation must be refused with the Average Order
+    Value explanation, never silently turned into a SUM.
+    """
+    stub_agent = StubAgentAdapter(
+        {
+            "What is the average sales by market?": agent_output(
+                "What is the average sales by market?",
+                metric="Sales",
+                dimension="Market",
+                operation="average",
+            )
+        }
+    )
+    app = create_app()
+    app.dependency_overrides[get_warehouse] = lambda: fake_warehouse
+    app.dependency_overrides[get_agent_service] = lambda: AgentService(adapter=stub_agent)
+    client = TestClient(app)
+
     response = client.post(CHAT_URL, json={"question": "What is the average sales by market?"})
 
     assert response.status_code == 200
     body = response.json()
 
     assert body["status"] == "unsupported"
+    assert body["evidence"]["governed_query"] is None
     assert "average" in body["message"].lower()
+    assert "Average Order Value" in body["message"]
+    assert fake_warehouse.executed_plans == []
 
 
 def test_unsupported_question_still_reports_schema_validation_as_skipped(

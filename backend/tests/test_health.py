@@ -27,15 +27,25 @@ def test_health_endpoint_returns_ok(client: TestClient) -> None:
 
 
 def test_health_reports_the_agents_own_metric_vocabulary(client: TestClient) -> None:
-    """The agent's declared metrics are reported, not silently rewritten."""
+    """The agent's declared metrics are reported, not silently rewritten.
+
+    The list is quoted verbatim from ``ai agent/schema.py`` (METRICS), which
+    now aligns with the governed dictionary's eight metrics plus the agent's
+    alias names (Sales, Quantity, Quantity Sold).
+    """
     body = client.get("/api/v1/health").json()
 
     assert body["agent_declared_metrics"] == [
         "Sales",
+        "Revenue",
         "Profit",
+        "Profit Margin",
+        "Orders",
+        "Customers",
         "Quantity",
-        "Discount",
+        "Quantity Sold",
         "Shipping Cost",
+        "Average Order Value",
     ]
     assert "Category" in body["agent_declared_dimensions"]
 
