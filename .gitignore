@@ -225,3 +225,4 @@ cube/.env
 
 cube/FactSales_backup.js
 data/*.csv
+node_modules
