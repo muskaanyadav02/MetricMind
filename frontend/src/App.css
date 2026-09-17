@@ -50,7 +50,7 @@
 
   color: white;
 
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .search-box input::placeholder {
@@ -69,7 +69,7 @@
 
   color: #666879;
 
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .navbar-actions {
@@ -128,7 +128,7 @@
 
   color: white;
 
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -200,7 +200,7 @@
 
   color: #696b7b;
 
-  font-size: 6px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.1px;
 }
@@ -211,7 +211,7 @@
 
   color: #535565;
 
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.2px;
 }
@@ -235,7 +235,7 @@
 
   color: #b8bac7;
 
-  font-size: 9px;
+  font-size: 11px;
 
   text-align: left;
 }
@@ -278,7 +278,7 @@
 
   color: #797b8c;
 
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 
   transition:
@@ -322,7 +322,7 @@
 
   color: #a78bfa;
 
-  font-size: 6px;
+  font-size: 8px;
   font-weight: 800;
 }
 
@@ -366,7 +366,7 @@
 }
 
 .upgrade-card h3 {
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.2;
 }
 
@@ -375,7 +375,7 @@
 
   color: #77798a;
 
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -393,7 +393,7 @@
 
   color: white;
 
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -440,7 +440,7 @@
 
   color: #c5c6d1;
 
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .user-info span {
@@ -450,7 +450,7 @@
 
   color: #5e6070;
 
-  font-size: 7px;
+  font-size: 10px;
 }
 
 .user-menu {
@@ -478,10 +478,261 @@
   }
 
   .search-box input {
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .navbar-actions .icon-button:first-child {
     display: none;
   }
+}
+/* =========================================
+   MetricMind - Final Readability Scale
+   ========================================= */
+
+body,
+button,
+input,
+textarea,
+select {
+  font-size: 15px !important;
+}
+
+/* Navbar */
+.search-box input {
+  font-size: 13px !important;
+}
+
+.shortcut {
+  font-size: 11px !important;
+}
+
+.navbar-avatar {
+  font-size: 12px !important;
+}
+
+.workspace-selector {
+  font-size: 12px !important;
+}
+
+/* Sidebar */
+.brand-subtitle {
+  font-size: 10px !important;
+}
+
+.workspace-label,
+.nav-label {
+  font-size: 11px !important;
+}
+
+.nav-item,
+.settings-link {
+  font-size: 13px !important;
+}
+
+.nav-badge {
+  font-size: 9px !important;
+}
+
+.user-info strong {
+  font-size: 12px !important;
+}
+
+.user-info span {
+  font-size: 10px !important;
+}
+
+/* Upgrade card */
+.upgrade-card h3 {
+  font-size: 13px !important;
+}
+
+.upgrade-card p {
+  font-size: 11px !important;
+}
+
+.upgrade-card button {
+  font-size: 11px !important;
+}
+
+/* Dashboard */
+.page-heading h1 {
+  font-size: 32px !important;
+}
+
+.page-heading p {
+  font-size: 14px !important;
+}
+
+.hero-content h2 {
+  font-size: 32px !important;
+}
+
+.hero-content p {
+  font-size: 14px !important;
+}
+
+.kpi-title {
+  font-size: 13px !important;
+}
+
+.kpi-value {
+  font-size: 24px !important;
+}
+
+.kpi-change,
+.kpi-period {
+  font-size: 11px !important;
+}
+
+.card-heading h3 {
+  font-size: 15px !important;
+}
+
+.card-heading p {
+  font-size: 13px !important;
+}
+
+.insight-content strong {
+  font-size: 12px !important;
+}
+
+.insight-content p {
+  font-size: 12px !important;
+}
+
+.chart-header h3 {
+  font-size: 15px !important;
+}
+
+.chart-header p {
+  font-size: 12px !important;
+}
+
+.bottom-stat span {
+  font-size: 11px !important;
+}
+
+.bottom-stat strong,
+.bottom-stat > b {
+  font-size: 13px !important;
+}
+
+/* Analytics */
+.analytics-summary span {
+  font-size: 13px !important;
+}
+
+.analytics-summary strong {
+  font-size: 22px !important;
+}
+
+/* Ask MetricMind */
+.chat-header strong {
+  font-size: 14px !important;
+}
+
+.chat-header span {
+  font-size: 11px !important;
+}
+
+.empty-chat h3 {
+  font-size: 18px !important;
+}
+
+.empty-chat p {
+  font-size: 13px !important;
+}
+
+.message-content strong {
+  font-size: 13px !important;
+}
+
+.message-content p {
+  font-size: 14px !important;
+}
+
+.chat-input-area input {
+  font-size: 14px !important;
+}
+
+.chat-input-area button {
+  font-size: 13px !important;
+}
+
+.suggestions-card h3 {
+  font-size: 17px !important;
+}
+
+.suggestions-card > p {
+  font-size: 13px !important;
+}
+
+.suggestion-list button {
+  font-size: 13px !important;
+}
+
+/* Insights */
+.insights-hero h2 {
+  font-size: 21px !important;
+}
+
+.insights-hero p {
+  font-size: 13px !important;
+}
+
+.large-insight h3 {
+  font-size: 15px !important;
+}
+
+.large-insight p {
+  font-size: 13px !important;
+}
+
+.insight-metric strong {
+  font-size: 22px !important;
+}
+
+.insight-metric span {
+  font-size: 11px !important;
+}
+
+/* Reports */
+.report-summary span {
+  font-size: 12px !important;
+}
+
+.report-summary strong {
+  font-size: 18px !important;
+}
+
+.report-title strong {
+  font-size: 14px !important;
+}
+
+.report-title span {
+  font-size: 11px !important;
+}
+
+.table-search input {
+  font-size: 13px !important;
+}
+
+.filter-button {
+  font-size: 13px !important;
+}
+
+.data-table th {
+  font-size: 12px !important;
+}
+
+.data-table td {
+  font-size: 13px !important;
+}
+
+.table-footer {
+  font-size: 12px !important;
+}
+
+.table-footer button {
+  font-size: 12px !important;
 }

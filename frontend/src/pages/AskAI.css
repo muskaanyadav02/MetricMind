@@ -6,7 +6,7 @@
 
 .ask-layout {
   display: grid;
-  grid-template-columns: 1.5fr .8fr;
+  grid-template-columns: 1.5fr 0.8fr;
   gap: 16px;
 }
 
@@ -39,12 +39,12 @@
   justify-content: center;
   border-radius: 9px;
   color: #c4b5fd;
-  background: rgba(139,92,246,.15);
+  background: rgba(139, 92, 246, 0.15);
 }
 
 .chat-header strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .chat-header span {
@@ -53,7 +53,7 @@
   gap: 5px;
   margin-top: 2px;
   color: #4ade80;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .chat-header i {
@@ -87,7 +87,7 @@
   justify-content: center;
   border-radius: 16px;
   color: #c4b5fd;
-  background: rgba(139,92,246,.12);
+  background: rgba(139, 92, 246, 0.12);
 }
 
 .empty-chat h3 {
@@ -99,7 +99,7 @@
   max-width: 350px;
   margin-top: 5px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .message {
@@ -116,24 +116,24 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(139,92,246,.12);
+  background: rgba(139, 92, 246, 0.12);
   color: #a78bfa;
 }
 
 .message.user .message-icon {
-  background: rgba(59,130,246,.12);
+  background: rgba(59, 130, 246, 0.12);
   color: #60a5fa;
 }
 
 .message-content strong {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .message-content p {
   max-width: 650px;
   margin-top: 3px;
   color: #aaaabd;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -147,13 +147,13 @@
 .chat-input-area input {
   flex: 1;
   min-width: 0;
-  border: 1px solid rgba(139,92,246,.35);
+  border: 1px solid rgba(139, 92, 246, 0.35);
   border-radius: 8px;
   outline: none;
   padding: 11px 12px;
   background: #0b0c15;
   color: white;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .chat-input-area input:focus {
@@ -169,7 +169,7 @@
   border-radius: 8px;
   background: linear-gradient(135deg, #7c3aed, #a855f7);
   color: white;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -186,7 +186,7 @@
 .suggestions-card > p {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .suggestion-list {
@@ -207,11 +207,11 @@
   background: #0c0d17;
   color: #aaaabd;
   text-align: left;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .suggestion-list button:hover {
-  border-color: rgba(139,92,246,.4);
+  border-color: rgba(139, 92, 246, 0.4);
   background: #11111f;
 }
 

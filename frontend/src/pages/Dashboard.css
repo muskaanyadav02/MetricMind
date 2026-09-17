@@ -27,7 +27,7 @@
 .eyebrow {
   display: block;
   color: #9b73ff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.5px;
 }
@@ -91,7 +91,7 @@
   max-width: 550px;
   margin-top: 12px;
   color: #c3bfe0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -142,7 +142,7 @@
 .floating-stat span {
   display: block;
   color: #8c8b9a;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .floating-stat strong {
@@ -153,7 +153,7 @@
 
 .floating-stat small {
   color: #36d67a;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .stat-one {
@@ -255,7 +255,7 @@
 .kpi-title {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .kpi-value {
@@ -279,7 +279,7 @@
   gap: 1px;
   padding: 2px 5px;
   border-radius: 4px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -295,7 +295,7 @@
 
 .kpi-period {
   color: #555768;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .mini-sparkline {
@@ -362,7 +362,7 @@
 .card-heading p {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .online-status {
@@ -371,7 +371,7 @@
   gap: 5px;
   height: fit-content;
   color: #4ade80;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .online-status span {
@@ -411,7 +411,7 @@
   border: 1px solid var(--border);
   border-radius: 20px;
   color: #858799;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .latest-insights {
@@ -429,7 +429,7 @@
   align-items: center;
   gap: 3px;
   color: #a78bfa;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .insight-card {
@@ -470,20 +470,20 @@
 
 .insight-content strong {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .insight-content p {
   margin-top: 2px;
   color: #6e7180;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .insight-content small {
   display: block;
   margin-top: 4px;
   color: #4f5160;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .dashboard-chart-section {
@@ -507,7 +507,7 @@
 .chart-header p {
   margin-top: 3px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .chart-menu {
@@ -546,14 +546,14 @@
 .bottom-stat span {
   display: block;
   color: #626476;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1px;
 }
 
 .bottom-stat strong {
   display: block;
   margin-top: 3px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .bottom-stat > b {

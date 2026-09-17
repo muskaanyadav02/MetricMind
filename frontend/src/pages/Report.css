@@ -19,14 +19,14 @@
 
 .report-summary span {
   color: #656778;
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 1px;
 }
 
 .report-summary strong {
   display: block;
   margin-top: 5px;
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .report-card {
@@ -64,14 +64,14 @@
 
 .report-title strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .report-title span {
   display: block;
   margin-top: 2px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .report-tools {
@@ -96,7 +96,7 @@
   outline: 0;
   background: transparent;
   color: white;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .filter-button {
@@ -108,7 +108,7 @@
   border-radius: 7px;
   background: #11121d;
   color: #aaaabd;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .data-table-wrapper {
@@ -125,7 +125,7 @@
   background: #0c0d16;
   color: #6c6e7e;
   text-align: left;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -133,7 +133,7 @@
   padding: 13px 15px;
   border-top: 1px solid rgba(255,255,255,.055);
   color: #b7b8c7;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .data-table tr:hover td {
@@ -152,7 +152,7 @@
   padding: 13px 15px;
   border-top: 1px solid var(--border);
   color: #646677;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .table-footer > div {
@@ -166,7 +166,7 @@
   border-radius: 5px;
   background: #10111a;
   color: #858799;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .table-footer button.current {

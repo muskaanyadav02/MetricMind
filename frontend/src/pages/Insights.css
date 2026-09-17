@@ -9,12 +9,12 @@
   align-items: center;
   gap: 18px;
   padding: 25px;
-  border: 1px solid rgba(139,92,246,.25);
+  border: 1px solid rgba(139, 92, 246, 0.25);
   border-radius: 14px;
   background:
     radial-gradient(
       circle at 20% 20%,
-      rgba(139,92,246,.18),
+      rgba(139, 92, 246, 0.18),
       transparent 40%
     ),
     var(--card);
@@ -28,7 +28,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 15px;
-  background: rgba(139,92,246,.13);
+  background: rgba(139, 92, 246, 0.13);
   color: #c4b5fd;
 }
 
@@ -41,7 +41,7 @@
   max-width: 720px;
   margin-top: 6px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .insight-grid {
@@ -69,17 +69,17 @@
 
 .large-insight-icon.purple {
   color: #a78bfa;
-  background: rgba(139,92,246,.13);
+  background: rgba(139, 92, 246, 0.13);
 }
 
 .large-insight-icon.blue {
   color: #60a5fa;
-  background: rgba(59,130,246,.13);
+  background: rgba(59, 130, 246, 0.13);
 }
 
 .large-insight-icon.orange {
   color: #fbbf24;
-  background: rgba(245,158,11,.13);
+  background: rgba(245, 158, 11, 0.13);
 }
 
 .large-insight h3 {
@@ -91,7 +91,7 @@
   margin-top: 7px;
   min-height: 52px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -110,7 +110,7 @@
 
 .insight-metric span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .recent-insights {
