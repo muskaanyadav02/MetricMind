@@ -522,6 +522,62 @@ the reason, rather than being counted as passed.
 
 ---
 
+## Project structure
+
+Everything the backend owns is under `backend/`. This is the complete Python
+source tree — if a file is not listed here, it does not exist. Each entry is a
+pointer; deeper behaviour is described in
+[Architecture and request flow](#architecture-and-request-flow),
+[Configuration](#configuration) and [Testing](#testing).
+
+```text
+backend/
+├── .env.example                  Placeholder environment variables (copy to backend/.env)
+├── pytest.ini                    Test configuration: testpaths, pythonpath, addopts
+├── requirements.txt              Runtime and test dependencies
+├── app/
+│   ├── main.py                   create_app(): logging, CORS, correlation-id middleware,
+│   │                             error handlers, v1 router, /health alias
+│   ├── config.py                 Settings from environment/backend/.env (cached, never
+│   │                             validated at load time)
+│   ├── api/
+│   │   └── v1/
+│   │       ├── router.py              Combines the four route modules under /api/v1
+│   │       ├── routes_health.py       GET /api/v1/health
+│   │       ├── routes_semantic.py     GET /api/v1/metrics, GET /api/v1/dimensions
+│   │       ├── routes_chat.py         POST /api/v1/chat/query
+│   │       └── routes_validation.py   POST /api/v1/validate/query, POST /api/v1/validate/data
+│   ├── schemas/                  Public request/response contracts (Pydantic)
+│   │   ├── common.py             Error envelope + health payloads
+│   │   ├── chat.py               Chat request/response; extra="forbid" blocks unknown fields
+│   │   ├── semantic.py           Metric/dimension catalogues + GovernedQuery (names, never SQL)
+│   │   └── validation.py         ValidationReport, the single normalised validation shape
+│   ├── services/                 Business logic (no I/O)
+│   │   ├── agent_service.py      Normalises the local agent's output
+│   │   ├── metric_service.py     Governed registry from the repository dictionaries + dbt marts
+│   │   ├── query_service.py      Translation -> compilation -> execution -> answer formatting
+│   │   └── validation_service.py Calls the repo's validators, normalises their result shapes
+│   ├── adapters/                 External-world I/O, behind interfaces
+│   │   ├── agent_loader.py       Loads the ai agent/ modules by file path (dir name has a space)
+│   │   ├── warehouse.py          WarehouseAdapter interface, backend selection, Snowflake execution
+│   │   └── cube_client.py        Cube placeholder: refuses with 503, never fabricates data
+│   └── core/
+│       ├── errors.py             Error classes + handlers -> one envelope for every endpoint
+│       └── logging.py            Logging setup and request correlation ids
+└── tests/
+    ├── conftest.py               Fixtures and fakes (FakeWarehouse, StubAgentAdapter); no tests
+    ├── test_health.py            Health endpoint
+    ├── test_metrics.py           Metric/dimension catalogues
+    ├── test_chat.py              Chat endpoint, end to end
+    ├── test_validation.py        Translation, compilation, validation normalisation
+    └── test_openapi_contract.py  Generated OpenAPI schema contract
+
+(Each package directory also holds an `__init__.py`. The per-test coverage
+table is in [Testing](#testing).)
+```
+
+---
+
 ## Architecture and request flow
 
 ### Current backend layers
