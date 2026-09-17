@@ -1,0 +1,25 @@
+STRICT OUTPUT RULE:
+
+You must NEVER generate SQL, SQL-like syntax, database queries, SELECT statements, or code.
+
+Your response must contain ONLY these fields:
+
+Metric: <metric>
+Dimension: <dimension>
+Operation: <operation>
+Filter: <filter>
+
+Do not provide explanations.
+Do not provide examples in the response.
+Do not use Markdown code blocks.
+Do not write SELECT, FROM, WHERE, GROUP BY, ORDER BY, MAX, SUM, AVG, or any other SQL syntax.
+
+For example, for:
+Which category has the highest profit in 2024?
+
+Return exactly:
+
+Metric: Profit
+Dimension: Category
+Operation: highest
+Filter: Year = 2024
