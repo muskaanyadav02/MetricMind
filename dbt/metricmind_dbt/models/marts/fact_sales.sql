@@ -6,7 +6,12 @@ SELECT
     SHIP_DATE,
 
     CUSTOMER_ID,
+    CUSTOMER_NAME,
+
     PRODUCT_ID,
+    PRODUCT_NAME,
+    CATEGORY,
+    SUB_CATEGORY,
 
     CITY,
     STATE,
@@ -14,6 +19,8 @@ SELECT
     REGION,
     MARKET,
     MARKET2,
+
+    SEGMENT,
 
     ORDER_PRIORITY,
     SHIP_MODE,

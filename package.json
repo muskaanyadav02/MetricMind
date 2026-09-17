@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@cubejs-backend/server": "^1.7.37",
+    "@cubejs-backend/snowflake-driver": "^1.7.37"
+  }
+}

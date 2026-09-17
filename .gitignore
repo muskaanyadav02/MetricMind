@@ -1,5 +1,10 @@
-# Node.js dependencies
+# =========================
+# Node.js
+# =========================
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Build output
 dist/
@@ -7,39 +12,80 @@ build/
 .next/
 out/
 
-# Environment variables / secrets
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+venv/
+env/
+ENV/
+
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+
+# =========================
+# Environment / Secrets
+# =========================
 .env
 .env.*
 !.env.example
 
-# Python cache
-__pycache__/
-*.py[cod]
+cube/.env
 
-# Python virtual environments
-venv/
-.venv/
-env/
+# =========================
+# Cube
+# =========================
+cube/.cubestore/
+cube/FactSales_backup.js
 
+# =========================
+# Project Data
+# =========================
+data/*.csv
+
+# =========================
 # Jupyter
+# =========================
 .ipynb_checkpoints/
 
-# Test / coverage
-.pytest_cache/
-.coverage
-htmlcov/
-
-# IDE / editor files
+# =========================
+# IDE
+# =========================
 .vscode/
 .idea/
 
-# OS files
+# =========================
+# OS
+# =========================
 .DS_Store
 Thumbs.db
 
-# Logs
+# =========================
+# Logs / Temporary
+# =========================
 *.log
-
-# Temporary files
 *.tmp
 *.temp
+
+# =========================
+# Python / Tool specific
+# =========================
+.abstra/
+.streamlit/secrets.toml
+.pypirc
+tempCodeRunnerFile.py
+
+# =========================
+# Build / Packaging
+# =========================
+*.egg-info/
+.eggs/
+.Python
