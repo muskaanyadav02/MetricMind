@@ -157,3 +157,42 @@ The semantic layer can now support governed analytical queries using:
 ### Next
 
 Proceed to secondary-factor analysis for the MetricMind use case, using dimensions/measures available in the dataset such as category, sub-category, discount, shipping cost, segment and geography.
+
+## Semantic Layer Validation
+
+### Cube.dev + Snowflake Validation
+- Cube.dev successfully connected to Snowflake.
+- Governed measures validated:
+  - Revenue = SUM(Sales)
+  - Profit = SUM(Profit)
+  - Profit Margin = SUM(Profit) / SUM(Sales) * 100
+  - Orders = COUNT(DISTINCT Order ID)
+  - Customers = COUNT(DISTINCT Customer ID)
+  - Quantity Sold = SUM(Quantity)
+  - Shipping Cost = SUM(Shipping Cost)
+  - Average Order Value = Revenue / Orders
+
+### API Validation
+- REST endpoint validated:
+  `POST /cubejs-api/v1/load`
+- European market filter validated using:
+  `FactSales.market = EU`
+- European sales and profit by category successfully returned.
+- European profit margin by quarter successfully returned for all 16 quarters from 2011 Q1 to 2014 Q4.
+
+### Governance / Repeatability
+- The same semantic API query was executed repeatedly.
+- Results remained consistent across executions.
+- This confirms that business metrics are being calculated through the governed Cube semantic layer rather than manually generated SQL logic.
+
+### Current Status
+- Snowflake raw layer: COMPLETE
+- dbt staging/intermediate/mart models: COMPLETE
+- dbt tests: PASS
+- Cube semantic model: COMPLETE
+- Cube → Snowflake connection: VALIDATED
+- Cube Playground validation: COMPLETE
+- Cube REST API validation: COMPLETE
+- EU filter validation: COMPLETE
+- Quarterly margin analysis: COMPLETE
+- Repeatability validation: COMPLETE
