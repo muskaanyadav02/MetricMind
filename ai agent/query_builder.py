@@ -21,14 +21,15 @@ METRIC_ALIASES = {
     "shipping": "Shipping Cost",
     "aov": "Average Order Value",
     "average order value": "Average Order Value",
+    "average sales": "Average Order Value",
+    "avg sales": "Average Order Value",
 }
 
 
 def identify_metric(question):
     question_lower = question.lower()
 
-    # Check longer aliases first so that "profit margin"
-    # is detected before "profit".
+    # Check longer aliases first.
     for alias in sorted(METRIC_ALIASES, key=len, reverse=True):
         if alias in question_lower:
             return METRIC_ALIASES[alias]
@@ -80,6 +81,26 @@ def identify_year(question):
         return int(match.group(1))
 
     return None
+
+
+def identify_filters(question):
+    """
+    Identify governed semantic filters from a natural-language question.
+
+    Filters are represented as semantic values, not SQL.
+    """
+
+    question_lower = question.lower()
+
+    filters = {
+        "Year": identify_year(question)
+    }
+
+    # Europe is represented by the EU market in the dataset.
+    if "europe" in question_lower or "european" in question_lower:
+        filters["Market"] = "EU"
+
+    return filters
 
 
 def identify_operation(question):
@@ -151,9 +172,7 @@ def build_query(question):
         "question": question,
         "metric": identify_metric(question),
         "dimension": identify_dimension(question),
-        "filters": {
-            "Year": identify_year(question)
-        },
+        "filters": identify_filters(question),
         "operation": identify_operation(question),
         "ambiguity": detect_ambiguity(question),
     }

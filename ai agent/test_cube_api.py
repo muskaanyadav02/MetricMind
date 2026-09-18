@@ -9,8 +9,13 @@ url = "http://localhost:4000/cubejs-api/v1/load"
 
 query = {
     "measures": ["FactSales.revenue"],
-    "dimensions": ["FactSales.category"],
-    "limit": 10,
+    "timeDimensions": [
+        {
+            "dimension": "FactSales.orderDate",
+            "granularity": "year",
+        }
+    ],
+    "limit": 20,
 }
 
 token = jwt.encode(

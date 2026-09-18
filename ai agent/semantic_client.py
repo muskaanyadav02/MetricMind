@@ -60,23 +60,36 @@ def _build_cube_query(structured_query):
     operation = structured_query.get("operation")
     filters = structured_query.get("filters", {})
 
+    # Validate metric.
     if metric not in METRIC_MAP:
         raise ValueError(f"Unsupported metric: {metric}")
 
-    if dimension not in DIMENSION_MAP:
+    # Dimension is optional for aggregate queries such as:
+    # "Show me European sales"
+    if dimension is not None and dimension not in DIMENSION_MAP:
         raise ValueError(f"Unsupported dimension: {dimension}")
 
     measure = METRIC_MAP[metric]
-    cube_dimension = DIMENSION_MAP[dimension]
+
+    # Only look up the Cube dimension when one exists.
+    cube_dimension = (
+        DIMENSION_MAP[dimension]
+        if dimension is not None
+        else None
+    )
 
     query = {
         "measures": [measure],
-        "dimensions": [cube_dimension],
+        "dimensions": (
+            [cube_dimension]
+            if cube_dimension is not None
+            else []
+        ),
         "limit": 10,
     }
 
     # Convert Year filter into a Cube time dimension.
-    if "Year" in filters:
+    if filters.get("Year") is not None:
         year = int(filters["Year"])
 
         query["timeDimensions"] = [
@@ -89,13 +102,24 @@ def _build_cube_query(structured_query):
             }
         ]
 
-    # Highest / lowest require ordering by the selected measure.
+    # Convert Market filter into a Cube filter.
+    if filters.get("Market") is not None:
+        query["filters"] = [
+            {
+                "member": "FactSales.market",
+                "operator": "equals",
+                "values": [filters["Market"]],
+            }
+        ]
+
+    # Highest operation.
     if operation == "highest":
         query["order"] = {
             measure: "desc"
         }
         query["limit"] = 1
 
+    # Lowest operation.
     elif operation == "lowest":
         query["order"] = {
             measure: "asc"
