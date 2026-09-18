@@ -551,8 +551,22 @@ class QueryService:
         return self._warehouse
 
     def compile(self, governed_query: GovernedQuery) -> QueryPlan:
-        """Compile without executing (used by the validation endpoint)."""
-        return compile_governed_query(governed_query, self._registry, self._settings)
+        """Compile without executing (used by the validation endpoint).
+
+        The plan carries both renderings of the same governed query: the
+        parameterised SQL for Snowflake, and the Cube.dev payload for the
+        semantic-layer backend (which reuses ``build_cube_payload``).
+        """
+        plan = compile_governed_query(governed_query, self._registry, self._settings)
+        # Reuse the existing Cube payload builder - the adapter never constructs
+        # its own payload, so the two backends query the same governed content.
+        return QueryPlan(
+            sql=plan.sql,
+            parameters=plan.parameters,
+            source_model=plan.source_model,
+            columns=plan.columns,
+            cube_payload=build_cube_payload(governed_query),
+        )
 
     def execute(self, governed_query: GovernedQuery) -> QueryExecution:
         """Compile and run a governed query."""

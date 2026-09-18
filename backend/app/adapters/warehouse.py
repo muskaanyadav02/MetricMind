@@ -19,7 +19,7 @@ from __future__ import annotations
 import abc
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from app.config import (
     WAREHOUSE_BACKEND_CUBE,
@@ -58,6 +58,11 @@ class QueryPlan:
     parameters: List[Any] = field(default_factory=list)
     source_model: str = ""
     columns: List[str] = field(default_factory=list)
+    # The same query rendered in the Cube.dev REST payload shape (built by
+    # services/query_service.build_cube_payload). Consumed only by the Cube
+    # adapter; Snowflake ignores it. Optional so existing plan constructions
+    # keep working unchanged.
+    cube_payload: Optional[Dict[str, Any]] = None
 
 
 @dataclass
