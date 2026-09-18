@@ -119,3 +119,41 @@ CSV
 → AI Agent
 
 The semantic layer provides governed metrics and dimensions so that downstream AI components query trusted business definitions instead of generating uncontrolled raw SQL.
+
+## Semantic Layer Validation — Completed
+
+### Cube.dev + Snowflake Validation
+
+- Connected Cube.dev to Snowflake `METRICMIND.MART.FACT_SALES`.
+- Validated governed measures:
+  - Revenue = `SUM(SALES)`
+  - Profit = `SUM(PROFIT)`
+  - Profit Margin = `SUM(PROFIT) / SUM(SALES) * 100`
+  - Orders = `COUNT(DISTINCT ORDER_ID)`
+  - Customers = `COUNT(DISTINCT CUSTOMER_ID)`
+- Validated Cube Playground queries against the Snowflake baseline.
+- Validated Market-level analysis using `FactSales.market`.
+- Validated EU filtering through the Cube semantic layer.
+- Validated quarterly EU analysis using `FactSales.orderDate`.
+- Confirmed quarterly Revenue, Profit and Profit Margin results for EU from 2011 Q1 through 2014 Q4.
+- Validated Cube REST API endpoint:
+  - `POST /cubejs-api/v1/load`
+- Confirmed Cube queries execute against Snowflake successfully.
+
+### Current Semantic Layer Status
+
+**Status: Completed and validated**
+
+The semantic layer can now support governed analytical queries using:
+- Geography/Market filters
+- Time-based quarterly analysis
+- Revenue
+- Profit
+- Profit Margin
+- Orders
+- Customers
+- Shipping Cost
+
+### Next
+
+Proceed to secondary-factor analysis for the MetricMind use case, using dimensions/measures available in the dataset such as category, sub-category, discount, shipping cost, segment and geography.
