@@ -145,11 +145,86 @@ When any of them is missing:
 - `POST /api/v1/chat/query` returns `503 configuration_error` naming the missing
   settings. The application still starts and every other endpoint works.
 
-If `WAREHOUSE_BACKEND=cube`, the required pair is `CUBE_API_URL` and
-`CUBE_API_TOKEN` — but the Cube adapter is a placeholder that always reports
-itself unconfigured until the semantic layer exists (see [Known limitations and
-troubleshooting](#known-limitations-and-troubleshooting) and
-`app/adapters/cube_client.py`).
+If `WAREHOUSE_BACKEND=cube`, the only required setting is `CUBE_API_URL`.
+`CUBE_API_TOKEN` is optional: Cube's development mode (`CUBEJS_DEV_MODE=true`,
+the default for local `cubejs` and Docker setups) is a documented
+authentication bypass, so a local Cube normally accepts requests without a
+token. When a token is configured it is sent as the `Authorization` header.
+See [The Cube backend](#the-cube-backend) for the full behaviour.
+
+### The Cube backend
+
+Setting `WAREHOUSE_BACKEND=cube` routes chat execution to the Cube.dev
+semantic layer (`app/adapters/cube_client.py`) instead of Snowflake. Routes
+do not change when the backend switches: both adapters implement the same
+`WarehouseAdapter` interface and return the same `QueryResult`, and governed
+validation runs identically before either adapter is reached.
+
+**Request path.** `QueryService.compile()` attaches a Cube payload to every
+`QueryPlan` (reusing the existing `build_cube_payload()` renderer), and the
+adapter POSTs `{"query": ...}` to `{CUBE_API_URL}/load` — Cube's
+`/cubejs-api/v1/load` endpoint — with `WAREHOUSE_TIMEOUT_SECONDS` applied as
+the HTTP timeout. The payload carries governed member names only; no SQL is
+ever sent to Cube, and a plan not produced by the governed compiler is
+refused without a request.
+
+**Member mapping.** Governed names are translated to the members of the
+deployed Cube model, `cube/model/FactSales.js` (the single `FactSales`
+cube), and response keys are translated back to governed names:
+
+| Governed metric | Cube member |
+|---|---|
+| Revenue | `FactSales.revenue` |
+| Profit | `FactSales.profit` |
+| Profit Margin | `FactSales.profitMargin` |
+| Orders | `FactSales.orders` |
+| Customers | `FactSales.customers` |
+| Quantity Sold | `FactSales.quantitySold` |
+| Shipping Cost | `FactSales.shippingCost` |
+| Average Order Value | `FactSales.averageOrderValue` |
+
+| Governed dimension | Cube member |
+|---|---|
+| Country | `FactSales.country` |
+| Region | `FactSales.region` |
+| Market | `FactSales.market` |
+| Market2 | `FactSales.market2` |
+| City | `FactSales.city` |
+| State | `FactSales.state` |
+| Ship Mode | `FactSales.shipMode` |
+| Order Priority | `FactSales.orderPriority` |
+
+Filter operators map as `in` → `equals` and `not_in` → `notEquals` (Cube's
+set semantics); `equals`, `contains`, `gt`, `gte`, `lt` and `lte` pass
+through unchanged, and `not_equals` maps to `notEquals`.
+
+**Time dimensions.** The model exposes one time member,
+`FactSales.orderDate`. The governed time attributes `Year`, `Quarter`,
+`Month` and `Day` are expressed as `timeDimensions` granularities
+(`year`/`quarter`/`month`/`day`) on that member, and the response key
+(`FactSales.orderDate.month`) is renamed back to the governed name. The
+same names used as a plain dimension or a filter member are refused — see
+[Known limitations](#known-limitations-and-troubleshooting).
+
+**Response normalisation.** Cube returns numbers as strings (documented
+Cube behaviour); the adapter parses strictly numeric strings back to
+numbers (`"700"` → `700`, `"12.5"` → `12.5`) and leaves everything else —
+including leading-zero strings such as order ids — untouched. Every
+response key the query asked for is renamed back to its governed name, so
+answer summaries, row validation and the chat response shape are identical
+over either backend. Response keys the query did not ask for keep their
+Cube names.
+
+**Local development.** A local Cube on its default port needs only:
+
+```dotenv
+WAREHOUSE_BACKEND=cube
+CUBE_API_URL=http://localhost:4000/cubejs-api/v1
+```
+
+`localhost:4000` is a *local* service, not a repository component — no Cube
+deployment ships in this repository. Leave `CUBE_API_TOKEN` unset for a
+dev-mode Cube; set it only if the deployment enforces authentication.
 
 ### Full variable reference
 
@@ -167,7 +242,7 @@ Everything `.env.example` documents, matched against `app/config.py`:
 | `WAREHOUSE_TIMEOUT_SECONDS` | `30` | No | Applied as both the Snowflake login timeout and the server-side `STATEMENT_TIMEOUT_IN_SECONDS` |
 | `MAX_RESULT_ROWS` | `500` | No | Hard server-side cap on returned rows; the request `limit` is clamped to this |
 | `DEFAULT_RESULT_ROWS` | `100` | No | Applied when a chat request omits `limit` |
-| `WAREHOUSE_BACKEND` | `snowflake` | No | `snowflake` (implemented) or `cube` (not implemented) |
+| `WAREHOUSE_BACKEND` | `snowflake` | No | `snowflake` (dbt MART tables) or `cube` (Cube.dev semantic layer) |
 | `SNOWFLAKE_ACCOUNT` | – | **Yes** (snowflake backend) | Snowflake account identifier |
 | `SNOWFLAKE_USER` | – | **Yes** (snowflake backend) | User name |
 | `SNOWFLAKE_PASSWORD` | – | **Yes** (snowflake backend) | Password |
@@ -175,8 +250,8 @@ Everything `.env.example` documents, matched against `app/config.py`:
 | `SNOWFLAKE_DATABASE` | `METRICMIND` | No | Per `docs/data_dictionary.md` |
 | `SNOWFLAKE_SCHEMA` | `MART` | No | The dbt mart schema |
 | `SNOWFLAKE_AUTHENTICATOR` | – | No | Optional; omit for username/password (e.g. `externalbrowser`, `snowflake_jwt`, `oauth`) |
-| `CUBE_API_URL` | – | Yes for `cube` backend | Cube.dev REST endpoint (not implemented; see above) |
-| `CUBE_API_TOKEN` | – | Yes for `cube` backend | Cube.dev auth token (not implemented; see above) |
+| `CUBE_API_URL` | – | **Yes** (cube backend) | Cube REST API base, e.g. `http://localhost:4000/cubejs-api/v1` for a local deployment (local-only; see [The Cube backend](#the-cube-backend)) |
+| `CUBE_API_TOKEN` | – | No | Sent as the `Authorization` header when set; optional because dev-mode Cube (the common local setup) is a documented authentication bypass |
 
 Credential-shaped values (`SNOWFLAKE_PASSWORD`, `CUBE_API_TOKEN`) must never be
 committed, echoed in logs, or pasted into issues. The code already enforces the
@@ -560,7 +635,7 @@ backend/
 │   ├── adapters/                 External-world I/O, behind interfaces
 │   │   ├── agent_loader.py       Loads the ai agent/ modules by file path (dir name has a space)
 │   │   ├── warehouse.py          WarehouseAdapter interface, backend selection, Snowflake execution
-│   │   └── cube_client.py        Cube placeholder: refuses with 503, never fabricates data
+│   │   └── cube_client.py        Cube REST adapter: governed queries -> /cubejs-api/v1/load
 │   └── core/
 │       ├── errors.py             Error classes + handlers -> one envelope for every endpoint
 │       └── logging.py            Logging setup and request correlation ids
@@ -569,6 +644,7 @@ backend/
     ├── test_health.py            Health endpoint
     ├── test_metrics.py           Metric/dimension catalogues
     ├── test_chat.py              Chat endpoint, end to end
+    ├── test_cube_adapter.py      Cube adapter with mocked HTTP — mapping, errors, e2e
     ├── test_validation.py        Translation, compilation, validation normalisation
     └── test_openapi_contract.py  Generated OpenAPI schema contract
 
@@ -596,11 +672,11 @@ HTTP request
   -> services (`app/services/`): registry, translation, compilation, validation
   -> adapters (`app/adapters/`): local agent loading or warehouse I/O
        -> `ai agent/` deterministic query builder
-       -> Snowflake dbt MART tables (chat execution only)
+       -> Snowflake dbt MART tables or Cube /load (chat execution only)
   -> Pydantic response -> HTTP response
 
 Validation service -> `analytics_validation/validation/`
-Cube adapter       -> placeholder only; no Cube runtime exists
+Cube adapter       -> POST {CUBE_API_URL}/load (WAREHOUSE_BACKEND=cube)
 ```
 
 The layers implemented today are:
@@ -621,8 +697,9 @@ The layers implemented today are:
 - **Adapters/infrastructure:** `agent_loader.py` loads the non-package
   `ai agent/` modules by file path. `warehouse.py` defines `WarehouseAdapter`,
   selects a backend, compiles safe qualified identifiers and implements actual
-  Snowflake execution. `cube_client.py` implements the interface only as a
-  refusing placeholder.
+  Snowflake execution. `cube_client.py` implements the same interface against
+  Cube's REST API: it translates the plan's governed payload to `FactSales.*`
+  members and POSTs it to `{CUBE_API_URL}/load`.
 - **Core configuration, logging and errors:** `app/config.py` reads and caches
   environment-backed settings without connecting to a dependency.
   `core/logging.py` configures logging and request correlation ids.
@@ -649,7 +726,7 @@ FastAPI dependency injection is used at route and service boundaries. For
 example, `chat_query()` receives `AgentService`, `QueryService`,
 `ValidationService` and `Settings`; `get_query_service()` in turn receives a
 `WarehouseAdapter`, `GovernedRegistry` and `Settings`. `get_warehouse()` calls
-`build_warehouse()` to select Snowflake or the Cube placeholder. Health routes
+`build_warehouse()` to select the Snowflake or Cube backend. Health routes
 also depend directly on the agent, registry, settings and warehouse interface.
 The catalogue routes depend only on the registry, while `/validate/data`
 depends only on the validation service.
@@ -694,7 +771,9 @@ ChatQueryRequest
   -> QueryService.execute()
        -> compile_governed_query() -> parameterised QueryPlan
        -> WarehouseAdapter.require_configured()
-       -> SnowflakeWarehouseAdapter.execute()
+       -> WarehouseAdapter.execute()
+            (Snowflake: parameterised SQL against the dbt MARTs, or
+             Cube: POST {CUBE_API_URL}/load with FactSales.* members)
   -> ValidationService.validate_rows() -> DataValidator
   -> combine validation reports + deterministic result summary
   -> ChatQueryResponse with rows and supporting evidence
@@ -713,9 +792,14 @@ in Cube's payload shape. This validates payload structure; it neither proves tha
 Cube is running nor executes a query. The compiler separately resolves every
 measure, dimension, filter and ordering member against the registry, adds the
 required dbt-mart joins, validates SQL identifiers, binds filter values as
-parameters and clamps the limit. `QueryService.execute()` then checks warehouse
-configuration and sends that compiled `QueryPlan` to the selected adapter. The
-Snowflake adapter is the only current adapter that can return rows.
+parameters and clamps the limit. The compiler also attaches a Cube payload
+(from `build_cube_payload()`) to the plan for the Cube backend; the governed
+`order_by` and `limit` are compiled into the SQL but are not part of that
+payload (see [Known limitations](#known-limitations-and-troubleshooting)).
+`QueryService.execute()` then checks warehouse
+configuration and sends that compiled `QueryPlan` to the selected adapter.
+Both adapters can return rows: Snowflake runs the parameterised SQL; Cube
+translates and POSTs the payload.
 
 Returned rows are audited with `DataValidator`; schema and data reports are
 combined but a flagged data report does not discard the rows. The endpoint
@@ -753,29 +837,30 @@ These are separate operations in the current code:
 |---|---|---|
 | Query schema validation | `ValidationService.validate_governed_query()` renders a `GovernedQuery` as a Cube-shaped dictionary and calls `MetricValidator` | No |
 | Query compilation | `QueryService.compile()` / `compile_governed_query()` resolves registry definitions and produces parameterised Snowflake SQL in a `QueryPlan` | No |
-| Warehouse execution | `QueryService.execute()` compiles, checks configuration and calls `WarehouseAdapter.execute()`; Snowflake opens the connection and runs the plan | **Yes** |
+| Warehouse execution | `QueryService.execute()` compiles, checks configuration and calls `WarehouseAdapter.execute()`; the selected adapter performs the access — Snowflake runs the parameterised SQL, Cube POSTs the payload to `/load` | **Yes** |
 | Data/result validation | `ValidationService.validate_rows()` calls `DataValidator` on rows already returned by chat or supplied to `/validate/data` | No additional access |
 
 Consequently, `/validate/query` validates and compiles but does not execute;
 `/validate/data` validates caller-supplied rows but does not compile or execute;
 and `/chat/query` is the only documented endpoint that performs all three stages
-and can access Snowflake.
+and can access Snowflake or Cube.
 
 ### Current implementation and placeholders
 
 - **Current:** FastAPI, the in-process governed registry, deterministic local
-  agent, governed Snowflake SQL compiler, direct Snowflake adapter, and the two
-  validators under `analytics_validation/validation/`.
-- **Placeholder/future:** `cube/` currently contains documentation only.
-  `CubeWarehouseAdapter` always reports itself unconfigured and refuses
-  execution; `CUBE_API_URL` and `CUBE_API_TOKEN` do not make it operational.
-  Cube-shaped governed payloads and catalogue member names are compatibility
-  structures used by validation and future integration, not evidence of a live
-  Cube runtime.
-- **Future seam, not current behavior:** `WarehouseAdapter` and
-  `build_warehouse()` provide a replacement boundary for a future Cube
-  implementation. The current `GovernedRegistry` is static in-process data;
-  there is no Cube-backed registry today.
+  agent, governed Snowflake SQL compiler, the Snowflake adapter, the Cube REST
+  adapter (`app/adapters/cube_client.py`, selected with
+  `WAREHOUSE_BACKEND=cube`), and the two validators under
+  `analytics_validation/validation/`.
+- **External to the repository:** a running Cube. `cube/` contains the model
+  (`cube/model/FactSales.js`) and its README; no Cube server ships here, so a
+  Cube deployment (local or hosted) is a prerequisite the team provides. The
+  catalogue's member names (`Sales.Revenue`, `Sales.Country`) still differ
+  from the model's member names (`FactSales.revenue`,
+  `FactSales.country`); the adapter maps between the two vocabularies at
+  execution time.
+- **Future seam, not current behavior:** the `GovernedRegistry` is static
+  in-process data; there is no Cube-backed registry today.
 
 ---
 
@@ -791,10 +876,11 @@ this service.
 | `tests/test_health.py` | 5 | `GET /api/v1/health` and the `/health` alias — status, agent availability, governed counts, and that no credential-shaped value reaches the payload |
 | `tests/test_metrics.py` | 8 | `GET /api/v1/metrics` and `GET /api/v1/dimensions` — counts, formulas pinned to `docs/metric_dictionary.md`, additivity flags, the agent/dictionary conflict, each dimension's source model and column |
 | `tests/test_chat.py` | 20 | `POST /api/v1/chat/query` end to end — answered, ambiguous and unsupported outcomes, the evidence payload, invalid request bodies, raw-SQL rejection, warehouse `502` and `503` |
+| `tests/test_cube_adapter.py` | 29 | The Cube adapter with `httpx` fully mocked — governed-to-`FactSales.*` member/operator/timeDimension mapping, response key renaming and string-number parsing, `Authorization` header only when a token is configured, HTTP/connect/timeout/malformed-response mapping to the structured errors, refusal of unmappable members before any request, and the chat endpoint end to end over Cube |
 | `tests/test_validation.py` | 48 | Agent-output translation, governed-query compilation, validation-result normalisation, and both validation endpoints |
 | `tests/test_openapi_contract.py` | 15 | The generated OpenAPI schema — that each route documents its real response model, that every declared non-`200` response with a JSON body uses the one error envelope, that the chat endpoint names all seven of its documented error codes, and that a handled error echoes the correlation id in both the header and the body |
 
-96 tests in total. The count is of *collected* tests, so a parametrised case
+125 tests in total. The count is of *collected* tests, so a parametrised case
 counts once per case — `tests/test_openapi_contract.py` holds 12 test functions,
 three of which are parametrised. `tests/conftest.py` holds the fixtures and the
 fakes, and contains no tests itself.
@@ -966,12 +1052,13 @@ Stated plainly so the suite is not read as broader than it is:
 - **No test connects to Snowflake.** `SnowflakeWarehouseAdapter.execute()` and
   `to_json_safe()` are never executed, and nothing asserts that Snowflake accepts
   the compiled SQL.
-- **The `504 warehouse_timeout` path has no test.** `WarehouseTimeoutError` and
-  its `_is_timeout_error` classification are only reachable with a live
-  warehouse, so only `502` and `503` are asserted.
-- **`CubeWarehouseAdapter` has no test.** The one Cube-related test asserts the
-  *payload shape* that `MetricValidator` validates, not the adapter.
-- **`build_warehouse()`'s backend selection is not asserted.**
+- **The Snowflake `504 warehouse_timeout` path has no test.** The Cube
+  adapter's timeout → `WarehouseTimeoutError` mapping *is* tested with mocked
+  `httpx` timeouts, but Snowflake's `_is_timeout_error` classification is
+  only reachable with a live warehouse.
+- **No test connects to a real Cube.** Every Cube interaction is mocked with
+  `httpx.MockTransport`; nothing asserts that a live deployment accepts the
+  generated payload.
 
 ---
 
@@ -1002,19 +1089,40 @@ Two things `warehouse.configured: true` does **not** mean:
 - It is a *presence* check only (`Settings.warehouse_configured`). It does not
   prove the credentials are correct or that Snowflake is reachable — the first
   real connection happens inside chat execution.
-- It does not mean the selected backend is implemented. With
-  `WAREHOUSE_BACKEND=cube` and both Cube variables set, health reports `ok`, but
-  the Cube adapter still refuses every execution (see below).
+- It does not prove the selected backend is reachable. With
+  `WAREHOUSE_BACKEND=cube`, `CUBE_API_URL` being set is enough for `ok` —
+  health never contacts Cube, so a stopped Cube service still reports `ok`
+  until the first chat query fails with `502 warehouse_error` (see below).
 
 ### Cube integration
 
-`CubeWarehouseAdapter` (`app/adapters/cube_client.py`) is a **placeholder, not a
-working backend**. The `cube/` directory contains documentation only — no Cube
-deployment, model files or runtime exist in this repository. The adapter always
-reports itself unconfigured and its `execute()` raises `503 configuration_error`
-explaining that the semantic layer is not implemented and to use
-`WAREHOUSE_BACKEND=snowflake`. Setting `CUBE_API_URL` and `CUBE_API_TOKEN` does
-not make Cube operational; no endpoint ever sends a request to Cube.
+The Cube backend is implemented (`app/adapters/cube_client.py`): with
+`WAREHOUSE_BACKEND=cube` it POSTs governed payloads to `{CUBE_API_URL}/load`
+(see [The Cube backend](#the-cube-backend)). Its limits are the deployed
+model's limits — `cube/model/FactSales.js` defines one cube, `FactSales`,
+and the adapter refuses anything the model cannot express rather than
+querying the wrong member:
+
+- **Not every governed dimension exists in the model.** `Week Number` and
+  `Month Name` have no `FactSales` member; a query naming them returns
+  `502 warehouse_error` before any request is sent.
+- **Governed time attributes work only inside `timeDimensions`.** `Year`,
+  `Quarter`, `Month` and `Day` map to `FactSales.orderDate` granularities,
+  but the same names as a plain group-by dimension or a filter member are
+  refused with `502`. Questions the agent translates into a `Year` filter —
+  e.g. "Show total sales by country in 2023" — therefore work on Snowflake
+  and fail on Cube until the model gains that mapping.
+- **Ordering and row limits are not carried in the Cube payload.** The
+  governed `order_by` and `limit` are compiled into the Snowflake SQL only;
+  over Cube, row order and row count follow Cube's defaults, and
+  `MAX_RESULT_ROWS` is enforced in the Snowflake SQL, not on the Cube path.
+- **Cube errors and outages surface as `502 warehouse_error` (or `504
+  warehouse_timeout`)** with generic messages; the HTTP status, response
+  excerpt or connection error goes to the server log under the correlation
+  id. A token is never included in a client-facing message.
+- **There is no Cube-backed registry or liveness check.** `GET /metrics` and
+  `/dimensions` come from the static governed registry, and health never
+  contacts Cube.
 
 ### Chat/query limitations
 
@@ -1070,11 +1178,11 @@ practical reading of each:
 | `422` | `request_validation_error` | The payload was malformed or contained an unknown field (`details[].field` names it) | Compare against the request example in the endpoint's section. If you were trying to send SQL: there is no field for it, by design |
 | `422` | `validation_failed` | A governed query referenced a member the registry does not know, or failed schema validation | Check the member names against `GET /api/v1/metrics` and `/api/v1/dimensions` |
 | `500` | `internal_error` | An unhandled exception. The message is generic; detail stays in the server log | Quote the `correlation_id` from the response body and search the server log. Note: on an unhandled 500 the `X-Correlation-ID` *header* is not echoed — the id is still in the body and the log |
-| `502` | `warehouse_error` | Snowflake returned an error while running the compiled plan (wrong credentials, missing grants, bad warehouse) | Re-check the Snowflake settings; the driver detail is in the server log under the correlation id, not in the response |
+| `502` | `warehouse_error` | The warehouse failed while running the compiled plan: Snowflake driver errors (wrong credentials, missing grants), or Cube — HTTP error status, refused connection, malformed response, or a governed member the deployed Cube model does not define | Check `WAREHOUSE_BACKEND`: for Snowflake re-check the Snowflake settings; for Cube confirm the service is running and read the server log under the correlation id — the response never contains Cube's error detail or a token |
 | `502` | `agent_error` | The agent module loaded but failed to interpret the question | Try rephrasing the question with a governed metric name |
-| `503` | `configuration_error` | Warehouse settings are missing — or the `cube` backend was selected | Check `warehouse.missing_settings` in `/api/v1/health`; confirm `WAREHOUSE_BACKEND=snowflake` |
+| `503` | `configuration_error` | Warehouse settings are missing — Snowflake credentials for the Snowflake backend, or `CUBE_API_URL` for the Cube backend | Check `warehouse.missing_settings` in `/api/v1/health`; it names the exact missing setting |
 | `503` | `agent_unavailable` | The `ai agent/` module could not be loaded | Verify the tracked `ai agent/` directory exists in the checkout |
-| `504` | `warehouse_timeout` | The query exceeded `WAREHOUSE_TIMEOUT_SECONDS` (default 30) | Raise `WAREHOUSE_TIMEOUT_SECONDS`, or make the query cheaper (lower `limit`, fewer dimensions) |
+| `504` | `warehouse_timeout` | The query exceeded `WAREHOUSE_TIMEOUT_SECONDS` (default 30) — the Snowflake statement timeout or the Cube HTTP timeout | Raise `WAREHOUSE_TIMEOUT_SECONDS`, or make the query cheaper (lower `limit`, fewer dimensions) |
 | `404` | `http_error` | Unknown path or method | Check the path against the [Endpoints](#endpoints) table |
 
 Two absent statuses, stated so nobody hunts for them: no route returns `400` —
@@ -1089,7 +1197,10 @@ are `chat/query`-only, like all 502/503/504 codes.
    expected local state without Snowflake — the service itself is fine.
 2. **Verify configuration:** compare `backend/.env` against the required-variables
    table in [Configuration](#configuration). Restart the server after editing —
-   settings are read once at process start and cached.
+   settings are read once at process start and cached. For
+   `WAREHOUSE_BACKEND=cube`, confirm `CUBE_API_URL` is set and the service
+   answers: a stopped Cube shows as `502 warehouse_error` at query time, not
+   in health.
 3. **Check the payload:** reproduce the request in Swagger UI
    (<http://localhost:8000/docs>). A `422` there, with `details[].field`, is a
    payload problem, not an environment problem.
@@ -1099,7 +1210,7 @@ are `chat/query`-only, like all 502/503/504 codes.
 5. **Inspect without executing:** `POST /api/v1/validate/query` returns the
    compiled SQL preview and bound parameters without touching the warehouse —
    useful to confirm what `chat/query` *would* run.
-6. **Run the test suite** (`python -m pytest -q` from `backend/`). All 96 tests
+6. **Run the test suite** (`python -m pytest -q` from `backend/`). All 125 tests
    passing means the failure is in your environment or configuration, not the
    backend code. See [Testing](#testing).
 
@@ -1115,7 +1226,7 @@ need, and today lacks, all of the following — none of these exist in the code:
 - **Production deployment configuration.** `uvicorn --reload` is a development
   server; there is no multi-worker, TLS or reverse-proxy guidance built in, and
   `DEBUG` defaults to `false` but no hardened mode exists.
-- **A live warehouse health check.** `/api/v1/health` never connects to Snowflake;
+- **A live warehouse health check.** `/api/v1/health` never connects to Snowflake or Cube;
   it reports configuration presence, not warehouse liveness.
 - **CORS hardening.** The defaults (`localhost:3000`, `localhost:5173`) are
   development origins; `CORS_ALLOW_ORIGINS` must be set explicitly for a real
