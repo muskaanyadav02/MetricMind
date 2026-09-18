@@ -72,6 +72,10 @@ Thumbs.db
 # Logs / Temporary
 # =========================
 *.log
+# Freebuff
+.freebuff/
+
+# Temporary files
 *.tmp
 *.temp
 
