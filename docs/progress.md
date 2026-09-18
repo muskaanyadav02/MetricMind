@@ -158,6 +158,7 @@ The semantic layer can now support governed analytical queries using:
 
 Proceed to secondary-factor analysis for the MetricMind use case, using dimensions/measures available in the dataset such as category, sub-category, discount, shipping cost, segment and geography.
 
+
 ## Semantic Layer Validation
 
 ### Cube.dev + Snowflake Validation
@@ -196,3 +197,32 @@ Proceed to secondary-factor analysis for the MetricMind use case, using dimensio
 - EU filter validation: COMPLETE
 - Quarterly margin analysis: COMPLETE
 - Repeatability validation: COMPLETE
+
+## Data & Semantic Engineering Milestone — Final
+
+### Completed
+- Snowflake RAW layer configured and validated.
+- Global Superstore dataset loaded with 51,290 records.
+- dbt staging, intermediate, and MART layers implemented.
+- dbt data quality tests completed successfully.
+- Fact and dimension models validated.
+- Cube.dev semantic model connected to Snowflake MART layer.
+- Governed business metrics implemented and validated.
+- Cube Playground queries validated.
+- Cube REST API validated through `/cubejs-api/v1/load`.
+- European market analysis validated using `MARKET = EU`.
+- Quarterly European profit-margin analysis validated.
+- Category and sub-category analysis validated.
+- Semantic API repeatability validated.
+- Documentation updated for Backend and AI Agent integration.
+
+### Integration Contract
+Backend and AI Agent services should query the governed Cube semantic API rather than generating unrestricted SQL directly against the warehouse.
+
+Primary endpoint:
+`POST /cubejs-api/v1/load`
+
+European market mapping:
+`FactSales.market = EU`
+
+This completes the Data & Semantic Engineering milestone for MetricMind.
