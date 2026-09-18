@@ -21,8 +21,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ENV_FILE = BACKEND_DIR / ".env"
 
-# Warehouse backends. Snowflake is implemented; Cube is a documented placeholder
-# for the semantic layer the Data & Semantic Engineering work will add later.
+# Warehouse backends. Snowflake queries the dbt MART tables directly; Cube is
+# the semantic-layer backend (cube/model/FactSales.js), reachable via its REST API.
 WAREHOUSE_BACKEND_SNOWFLAKE = "snowflake"
 WAREHOUSE_BACKEND_CUBE = "cube"
 SUPPORTED_WAREHOUSE_BACKENDS = (WAREHOUSE_BACKEND_SNOWFLAKE, WAREHOUSE_BACKEND_CUBE)
@@ -78,7 +78,12 @@ class Settings(BaseSettings):
     snowflake_schema: str = "MART"
     snowflake_authenticator: Optional[str] = None
 
-    # -- Cube.dev (semantic layer, not implemented yet) --------------------
+    # -- Cube.dev (semantic layer) ----------------------------------------
+    # CUBE_API_URL is the only required Cube setting, e.g.
+    # http://localhost:4000/cubejs-api/v1 for a local deployment.
+    # CUBE_API_TOKEN is optional: Cube's development mode (CUBEJS_DEV_MODE=true,
+    # the default for local cubejs/Docker setups) is a documented authentication
+    # bypass. When set, it is sent as the Authorization header.
     cube_api_url: Optional[str] = None
     cube_api_token: Optional[str] = None
 
@@ -96,7 +101,7 @@ class Settings(BaseSettings):
         never opens a connection.
         """
         if self.warehouse_backend == WAREHOUSE_BACKEND_CUBE:
-            return bool(self.cube_api_url and self.cube_api_token)
+            return bool(self.cube_api_url)
         return bool(
             self.snowflake_account
             and self.snowflake_user
@@ -108,7 +113,7 @@ class Settings(BaseSettings):
     def missing_warehouse_settings(self) -> List[str]:
         """Names (only) of the settings required for the chosen backend."""
         if self.warehouse_backend == WAREHOUSE_BACKEND_CUBE:
-            required = {"CUBE_API_URL": self.cube_api_url, "CUBE_API_TOKEN": self.cube_api_token}
+            required = {"CUBE_API_URL": self.cube_api_url}
         else:
             required = {
                 "SNOWFLAKE_ACCOUNT": self.snowflake_account,
