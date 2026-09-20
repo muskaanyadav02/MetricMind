@@ -4,12 +4,13 @@ This module holds the two pieces of logic the backend most needs to be honest
 about:
 
 1. Translation - translate_agent_output turns the AI agent's output into the
-   governed query structure. Every interpretation it makes is recorded in
-   notes and returned to the client.
+   governed query structure.
 
-2. Compilation - compile_governed_query turns a GovernedQuery into SQL.
-   Identifiers come only from the governed registry and filter values are
+2. Compilation - compile_governed_query turns a GovernedQuery into parameterised
+   SQL. Identifiers come only from the governed registry and filter values are
    always bound parameters.
+
+The same governed query can also be rendered into a Cube.dev REST payload.
 """
 
 from __future__ import annotations
@@ -38,7 +39,6 @@ from app.schemas.semantic import (
     MetricDefinition,
     OrderBy,
     QueryFilter,
-    TimeDimension,
 )
 from app.services.agent_service import AgentInterpretation
 from app.services.metric_service import (
@@ -77,8 +77,12 @@ _MODEL_ALIASES: Dict[str, str] = {
 
 
 _JOIN_CONDITIONS: Dict[str, str] = {
-    DIM_PRODUCT: f"{FACT_ALIAS}.PRODUCT_ID = {DIM_PRODUCT_ALIAS}.PRODUCT_ID",
-    DIM_CUSTOMER: f"{FACT_ALIAS}.CUSTOMER_ID = {DIM_CUSTOMER_ALIAS}.CUSTOMER_ID",
+    DIM_PRODUCT: (
+        f"{FACT_ALIAS}.PRODUCT_ID = {DIM_PRODUCT_ALIAS}.PRODUCT_ID"
+    ),
+    DIM_CUSTOMER: (
+        f"{FACT_ALIAS}.CUSTOMER_ID = {DIM_CUSTOMER_ALIAS}.CUSTOMER_ID"
+    ),
     DIM_DATE: DIM_DATE_JOIN_CONDITION,
 }
 
@@ -135,16 +139,16 @@ def translate_agent_output(
     default_limit: int,
     max_limit: int,
 ) -> TranslationOutcome:
-    """Translate the AI agent's output into a governed query."""
+    """Translate the AI agent's output into a governed query.
+
+    If the agent output cannot be mapped onto governed metrics and dimensions,
+    the result is ambiguous or unsupported instead of inventing a query.
+    """
 
     notes: List[str] = []
-
     ambiguity = interpretation.ambiguity
 
-    # ------------------------------------------------------------------
-    # 1. Check ambiguity
-    # ------------------------------------------------------------------
-
+    # 1. Agent ambiguity
     if ambiguity.ambiguous:
         reason = (
             ambiguity.reason
@@ -163,10 +167,7 @@ def translate_agent_output(
             ambiguity=ambiguity,
         )
 
-    # ------------------------------------------------------------------
-    # 2. Metric
-    # ------------------------------------------------------------------
-
+    # 2. Metric is mandatory
     if not interpretation.metric:
         notes.append(
             "The AI agent did not identify any governed metric "
@@ -181,9 +182,7 @@ def translate_agent_output(
         )
 
     if interpretation.metric in UNMAPPED_AGENT_METRICS:
-        reason = UNMAPPED_AGENT_METRICS[
-            interpretation.metric
-        ]
+        reason = UNMAPPED_AGENT_METRICS[interpretation.metric]
 
         notes.append(
             f"The agent named '{interpretation.metric}', "
@@ -221,14 +220,10 @@ def translate_agent_output(
             f"({metric.formula})."
         )
 
-    # ------------------------------------------------------------------
-    # 3. Dimension
-    # ------------------------------------------------------------------
-
+    # 3. Dimension is optional
     dimension: Optional[DimensionDefinition] = None
 
     if interpretation.dimension:
-
         dimension = registry.find_dimension(
             interpretation.dimension
         )
@@ -253,8 +248,7 @@ def translate_agent_output(
                 f"Agent dimension '{interpretation.dimension}' "
                 f"was interpreted as the governed dimension "
                 f"'{dimension.name}' "
-                f"({dimension.source_model}."
-                f"{dimension.column})."
+                f"({dimension.source_model}.{dimension.column})."
             )
 
         if not dimension.governed:
@@ -264,17 +258,11 @@ def translate_agent_output(
                 "dictionary; treat its values as ungoverned."
             )
 
-    # ------------------------------------------------------------------
     # 4. Operation
-    # ------------------------------------------------------------------
-
     operation = interpretation.operation
 
     if operation in UNSUPPORTED_OPERATIONS:
-
-        reason = UNSUPPORTED_OPERATIONS[
-            operation
-        ]
+        reason = UNSUPPORTED_OPERATIONS[operation]
 
         notes.append(
             f"The agent operation '{operation}' "
@@ -303,10 +291,7 @@ def translate_agent_output(
             ambiguity,
         )
 
-    # ------------------------------------------------------------------
     # 5. Assemble governed query
-    # ------------------------------------------------------------------
-
     measures = [metric.name]
 
     dimensions = (
@@ -315,41 +300,31 @@ def translate_agent_output(
         else []
     )
 
-    # --------------------------------------------------------------
-    # Filters
-    # --------------------------------------------------------------
-
     filters: List[QueryFilter] = []
 
     # Year filter
     if interpretation.year is not None:
-
         filters.append(
             QueryFilter(
                 member="Year",
                 operator="equals",
-                values=[
-                    interpretation.year
-                ],
+                values=[interpretation.year],
             )
         )
 
         notes.append(
-            f"Agent year filter {interpretation.year} "
-            "was applied to the governed 'Year' dimension "
+            f"Agent year filter {interpretation.year} was applied "
+            "to the governed 'Year' dimension "
             "(fact_sales.YEAR)."
         )
 
     # Market filter
     if interpretation.market is not None:
-
         filters.append(
             QueryFilter(
                 member="Market",
                 operator="equals",
-                values=[
-                    interpretation.market
-                ],
+                values=[interpretation.market],
             )
         )
 
@@ -359,17 +334,13 @@ def translate_agent_output(
             "(fact_sales.MARKET)."
         )
 
-    # --------------------------------------------------------------
     # Ordering
-    # --------------------------------------------------------------
-
     order_by: List[OrderBy] = []
 
     if (
         dimension
         and operation == OPERATION_HIGHEST
     ):
-
         order_by.append(
             OrderBy(
                 member=metric.name,
@@ -386,7 +357,6 @@ def translate_agent_output(
         dimension
         and operation == OPERATION_LOWEST
     ):
-
         order_by.append(
             OrderBy(
                 member=metric.name,
@@ -400,7 +370,6 @@ def translate_agent_output(
         )
 
     elif dimension:
-
         order_by.append(
             OrderBy(
                 member=metric.name,
@@ -412,10 +381,6 @@ def translate_agent_output(
             f"Results ordered by {metric.name} DESC "
             "for a deterministic row limit."
         )
-
-    # --------------------------------------------------------------
-    # Deterministic answer
-    # --------------------------------------------------------------
 
     notes.append(
         "Answer text is generated deterministically from the "
@@ -451,11 +416,9 @@ def _resolve_measures(
     names: Sequence[str],
     registry: GovernedRegistry,
 ) -> List[MetricDefinition]:
-
     resolved: List[MetricDefinition] = []
 
     for name in names:
-
         metric = registry.find_metric(name)
 
         if metric is None:
@@ -480,11 +443,9 @@ def _resolve_dimensions(
     names: Sequence[str],
     registry: GovernedRegistry,
 ) -> List[DimensionDefinition]:
-
     resolved: List[DimensionDefinition] = []
 
     for name in names:
-
         dimension = registry.find_dimension(name)
 
         if dimension is None:
@@ -508,10 +469,7 @@ def _resolve_dimensions(
 def _column_expression(
     dimension: DimensionDefinition,
 ) -> str:
-
-    alias = _MODEL_ALIASES[
-        dimension.source_model
-    ]
+    alias = _MODEL_ALIASES[dimension.source_model]
 
     return (
         f"{alias}."
@@ -523,21 +481,19 @@ def _build_where_clause(
     filters: Sequence[QueryFilter],
     registry: GovernedRegistry,
 ) -> Tuple[List[str], List[Any]]:
+    """Compile filters into SQL predicates and bound parameters."""
 
     clauses: List[str] = []
-
     parameters: List[Any] = []
 
     for query_filter in filters:
-
         dimension = registry.find_dimension(
             query_filter.member
         )
 
         if dimension is None:
             raise ValidationFailedError(
-                f"Filter member "
-                f"'{query_filter.member}' "
+                f"Filter member '{query_filter.member}' "
                 "is not a governed dimension.",
                 details=[
                     {
@@ -550,9 +506,7 @@ def _build_where_clause(
                 ],
             )
 
-        column = _column_expression(
-            dimension
-        )
+        column = _column_expression(dimension)
 
         values = list(
             query_filter.values
@@ -560,12 +514,10 @@ def _build_where_clause(
 
         operator = query_filter.operator
 
-        # IN / NOT IN
         if operator in (
             "in",
             "not_in",
         ):
-
             if not values:
                 raise ValidationFailedError(
                     f"Filter on '{dimension.name}' "
@@ -599,9 +551,7 @@ def _build_where_clause(
 
         value = values[0]
 
-        # CONTAINS
         if operator == "contains":
-
             clauses.append(
                 f"{column} ILIKE %s"
             )
@@ -623,8 +573,7 @@ def _build_where_clause(
             )
 
         clauses.append(
-            f"{column} "
-            f"{sql_operator} %s"
+            f"{column} {sql_operator} %s"
         )
 
         parameters.append(value)
@@ -640,12 +589,10 @@ def _order_expression(
 ) -> Optional[str]:
 
     for metric in metrics:
-
         if metric.name == order.member:
             return metric.sql_expression
 
     for dimension in dimensions:
-
         if dimension.name == order.member:
             return _column_expression(
                 dimension
@@ -675,6 +622,7 @@ def compile_governed_query(
     registry: GovernedRegistry,
     settings: Settings,
 ) -> QueryPlan:
+    """Compile a governed query into a parameterised QueryPlan."""
 
     if not governed_query.measures:
         raise ValidationFailedError(
@@ -683,8 +631,8 @@ def compile_governed_query(
                 {
                     "field": "measures",
                     "message": (
-                        "This field is required and "
-                        "must not be empty."
+                        "This field is required "
+                        "and must not be empty."
                     ),
                 }
             ],
@@ -701,12 +649,10 @@ def compile_governed_query(
     )
 
     select_parts: List[str] = []
-
     columns: List[str] = []
 
     # Dimensions
     for dimension in dimensions:
-
         expression = _column_expression(
             dimension
         )
@@ -721,7 +667,6 @@ def compile_governed_query(
 
     # Measures
     for metric in metrics:
-
         select_parts.append(
             f'{metric.sql_expression} '
             f'AS "{metric.name}"'
@@ -743,7 +688,6 @@ def compile_governed_query(
     joined_models: List[str] = []
 
     for dimension in dimensions:
-
         model = dimension.source_model
 
         if (
@@ -764,9 +708,7 @@ def compile_governed_query(
             model,
         )
 
-        condition = _JOIN_CONDITIONS[
-            model
-        ]
+        condition = _JOIN_CONDITIONS[model]
 
         from_clause.append(
             f"LEFT JOIN {table} AS {alias} "
@@ -775,7 +717,6 @@ def compile_governed_query(
 
         joined_models.append(model)
 
-    # WHERE
     where_clauses, parameters = (
         _build_where_clause(
             governed_query.filters,
@@ -783,17 +724,14 @@ def compile_governed_query(
         )
     )
 
-    # GROUP BY
     group_by_parts = [
         _column_expression(dimension)
         for dimension in dimensions
     ]
 
-    # ORDER BY
     order_parts: List[str] = []
 
     for order in governed_query.order_by:
-
         expression = _order_expression(
             order,
             metrics,
@@ -826,7 +764,6 @@ def compile_governed_query(
             f"{expression} {direction}"
         )
 
-    # LIMIT
     requested_limit = (
         governed_query.limit
         or settings.default_result_rows
@@ -842,26 +779,24 @@ def compile_governed_query(
 
     sql_lines = [
         "SELECT",
-        "    " + ",\n    ".join(select_parts),
+        "    "
+        + ",\n    ".join(select_parts),
         *from_clause,
     ]
 
     if where_clauses:
-
         sql_lines.append(
             "WHERE "
             + " AND ".join(where_clauses)
         )
 
     if group_by_parts:
-
         sql_lines.append(
             "GROUP BY "
             + ", ".join(group_by_parts)
         )
 
     if order_parts:
-
         sql_lines.append(
             "ORDER BY "
             + ", ".join(order_parts)
@@ -884,15 +819,13 @@ def build_cube_payload(
 ) -> Dict[str, Any]:
     """Render a governed query in Cube.dev REST payload shape."""
 
-    return {
+    payload: Dict[str, Any] = {
         "measures": list(
             governed_query.measures
         ),
-
         "dimensions": list(
             governed_query.dimensions
         ),
-
         "filters": [
             {
                 "member": query_filter.member,
@@ -904,12 +837,9 @@ def build_cube_payload(
             for query_filter
             in governed_query.filters
         ],
-
         "timeDimensions": [
             {
-                "dimension": (
-                    time_dimension.dimension
-                ),
+                "dimension": time_dimension.dimension,
                 "granularity": (
                     time_dimension.granularity
                 ),
@@ -917,7 +847,21 @@ def build_cube_payload(
             for time_dimension
             in governed_query.time_dimensions
         ],
+        "limit": governed_query.limit,
     }
+
+    if governed_query.order_by:
+        payload["order"] = [
+            {
+                "id": order.member,
+                "desc": (
+                    order.direction == "desc"
+                ),
+            }
+            for order in governed_query.order_by
+        ]
+
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -937,6 +881,7 @@ def summarize_result(
     rows: Sequence[Dict[str, Any]],
     dimensions: Sequence[str],
 ) -> str:
+    """Build answer text deterministically from returned rows."""
 
     row_count = len(rows)
 
@@ -952,19 +897,15 @@ def summarize_result(
         )
 
     if not dimensions:
-
         value = (
             rows[0].get(measure)
             if rows
             else None
         )
 
-        return (
-            f"{measure} = {value}."
-        )
+        return f"{measure} = {value}."
 
     if row_count == 1:
-
         row = rows[0]
 
         labelled = ", ".join(
@@ -999,42 +940,53 @@ class QueryService:
         registry: GovernedRegistry,
         settings: Settings,
     ) -> None:
-
         self._warehouse = warehouse
-
         self._registry = registry
-
         self._settings = settings
 
     @property
     def registry(
         self,
     ) -> GovernedRegistry:
-
         return self._registry
 
     @property
     def warehouse(
         self,
     ) -> WarehouseAdapter:
-
         return self._warehouse
 
     def compile(
         self,
         governed_query: GovernedQuery,
     ) -> QueryPlan:
+        """Compile without executing.
 
-        return compile_governed_query(
+        The plan carries both renderings of the same governed query:
+        parameterised SQL for Snowflake and a Cube.dev payload.
+        """
+
+        plan = compile_governed_query(
             governed_query,
             self._registry,
             self._settings,
+        )
+
+        return QueryPlan(
+            sql=plan.sql,
+            parameters=plan.parameters,
+            source_model=plan.source_model,
+            columns=plan.columns,
+            cube_payload=build_cube_payload(
+                governed_query
+            ),
         )
 
     def execute(
         self,
         governed_query: GovernedQuery,
     ) -> QueryExecution:
+        """Compile and run a governed query."""
 
         plan = self.compile(
             governed_query
@@ -1064,6 +1016,7 @@ def get_query_service(
         get_settings
     ),
 ) -> QueryService:
+    """FastAPI dependency returning the query service."""
 
     return QueryService(
         warehouse=warehouse,
