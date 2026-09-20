@@ -1,34 +1,37 @@
 import re
+
 from schema import METRICS, DIMENSIONS
 
 
 METRIC_ALIASES = {
-    "sales": "Sales",
-    "revenue": "Revenue",
     "total sales": "Sales",
-    "profit": "Profit",
-    "margin": "Profit Margin",
+    "average order value": "Average Order Value",
+    "average sales": "Average Order Value",
+    "avg sales": "Average Order Value",
     "profit margin": "Profit Margin",
-    "orders": "Orders",
-    "order count": "Orders",
-    "number of orders": "Orders",
-    "customers": "Customers",
-    "unique customers": "Customers",
-    "quantity": "Quantity",
     "quantity sold": "Quantity Sold",
     "units sold": "Quantity Sold",
     "shipping cost": "Shipping Cost",
+    "order count": "Orders",
+    "number of orders": "Orders",
+    "unique customers": "Customers",
+    "sales": "Sales",
+    "revenue": "Revenue",
+    "profit": "Profit",
+    "margin": "Profit Margin",
+    "orders": "Orders",
+    "customers": "Customers",
+    "quantity": "Quantity",
     "shipping": "Shipping Cost",
     "aov": "Average Order Value",
-    "average order value": "Average Order Value",
 }
 
 
 def identify_metric(question):
     question_lower = question.lower()
 
-    # Check longer aliases first so that "profit margin"
-    # is detected before "profit".
+    # Check longer aliases first so that phrases such as
+    # "profit margin" are detected before "profit".
     for alias in sorted(METRIC_ALIASES, key=len, reverse=True):
         if alias in question_lower:
             return METRIC_ALIASES[alias]
@@ -40,11 +43,26 @@ def identify_dimension(question):
     question_lower = question.lower()
 
     dimension_aliases = {
-        "Year": ["year", "years"],
-        "Country": ["country", "countries"],
-        "Market": ["market", "markets"],
-        "Region": ["region", "regions"],
-        "Category": ["category", "categories"],
+        "Year": [
+            "year",
+            "years",
+        ],
+        "Country": [
+            "country",
+            "countries",
+        ],
+        "Market": [
+            "market",
+            "markets",
+        ],
+        "Region": [
+            "region",
+            "regions",
+        ],
+        "Category": [
+            "category",
+            "categories",
+        ],
         "Sub-Category": [
             "sub-category",
             "subcategory",
@@ -82,30 +100,65 @@ def identify_year(question):
     return None
 
 
+def identify_market(question):
+    question_lower = question.lower()
+
+    # Europe is represented by the EU market
+    # in the MetricMind semantic layer.
+    if any(
+        phrase in question_lower
+        for phrase in [
+            "european",
+            "europe",
+        ]
+    ):
+        return "EU"
+
+    return None
+
+
 def identify_operation(question):
     question_lower = question.lower()
 
     if any(
         word in question_lower
-        for word in ["highest", "maximum", "most", "top", "best"]
+        for word in [
+            "highest",
+            "maximum",
+            "most",
+            "top",
+            "best",
+        ]
     ):
         return "highest"
 
     if any(
         word in question_lower
-        for word in ["lowest", "minimum", "least", "bottom"]
+        for word in [
+            "lowest",
+            "minimum",
+            "least",
+            "bottom",
+            "low",
+        ]
     ):
         return "lowest"
 
     if any(
         word in question_lower
-        for word in ["compare", "comparison"]
+        for word in [
+            "compare",
+            "comparison",
+        ]
     ):
         return "compare"
 
     if any(
         word in question_lower
-        for word in ["total", "sum"]
+        for word in [
+            "total",
+            "sum",
+        ]
     ):
         return "total"
 
@@ -116,9 +169,21 @@ def detect_ambiguity(question):
     question_lower = question.lower()
 
     ambiguous_terms = {
-        "best": ["Sales", "Profit", "Quantity"],
-        "good": ["Sales", "Profit", "Quantity"],
-        "successful": ["Sales", "Profit", "Quantity"],
+        "best": [
+            "Sales",
+            "Profit",
+            "Quantity",
+        ],
+        "good": [
+            "Sales",
+            "Profit",
+            "Quantity",
+        ],
+        "successful": [
+            "Sales",
+            "Profit",
+            "Quantity",
+        ],
     }
 
     for term, possible_metrics in ambiguous_terms.items():
@@ -152,7 +217,8 @@ def build_query(question):
         "metric": identify_metric(question),
         "dimension": identify_dimension(question),
         "filters": {
-            "Year": identify_year(question)
+            "Year": identify_year(question),
+            "Market": identify_market(question),
         },
         "operation": identify_operation(question),
         "ambiguity": detect_ambiguity(question),

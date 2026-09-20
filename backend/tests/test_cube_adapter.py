@@ -156,13 +156,19 @@ def test_payload_is_built_from_the_governed_query() -> None:
     """The adapter consumes the compiler's plan payload, not its own construction."""
     from app.schemas.semantic import GovernedQuery
 
-    governed = GovernedQuery(measures=["Revenue"], dimensions=["Country"])
+    governed = GovernedQuery(
+        measures=["Revenue"],
+        dimensions=["Country"],
+    )
+
     payload = build_cube_payload(governed)
+
     assert payload == {
         "measures": ["Revenue"],
         "dimensions": ["Country"],
         "filters": [],
         "timeDimensions": [],
+        "limit": None,
     }
 
 

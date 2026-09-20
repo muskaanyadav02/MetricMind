@@ -355,17 +355,40 @@ def test_identifier_validation_rejects_anything_but_a_plain_column_name() -> Non
 
 def test_cube_payload_shape_matches_what_the_validator_expects() -> None:
     """The translation output is already in the Cube.dev payload shape."""
+
     payload = build_cube_payload(
         GovernedQuery(
             measures=["Revenue"],
             dimensions=["Market"],
-            filters=[QueryFilter(member="Market", operator="in", values=["EU"])],
+            filters=[
+                QueryFilter(
+                    member="Market",
+                    operator="in",
+                    values=["EU"],
+                )
+            ],
         )
     )
 
-    assert set(payload) == {"measures", "dimensions", "filters", "timeDimensions"}
+    assert set(payload) == {
+        "measures",
+        "dimensions",
+        "filters",
+        "timeDimensions",
+        "limit",
+    }
+
     assert payload["measures"] == ["Revenue"]
-    assert payload["filters"] == [{"member": "Market", "operator": "in", "values": ["EU"]}]
+
+    assert payload["filters"] == [
+        {
+            "member": "Market",
+            "operator": "in",
+            "values": ["EU"],
+        }
+    ]
+
+    assert payload["limit"] is None
 
 
 def test_registry_lookup_tolerates_naming_variants() -> None:

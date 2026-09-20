@@ -1,12 +1,11 @@
 """Agent service: runs the local AI agent and normalises its output.
 
 The agent's dictionary is preserved verbatim on
-:attr:`AgentInterpretation.raw` and surfaced to clients as ``evidence.agent_output``.
-This service only *reads* from it - it never rewrites the agent's payload, and it
-never fills in a value the agent did not produce.
+:attr:`AgentInterpretation.raw` and surfaced to clients as
+``evidence.agent_output``.
 
-The agent at this commit is deterministic keyword matching, not an LLM. Nothing
-here claims otherwise.
+This service only reads from the agent's payload. It does not rewrite
+or invent values that the agent did not produce.
 """
 
 from __future__ import annotations
@@ -26,20 +25,49 @@ class AgentInterpretation(BaseModel):
     """Normalised view of one agent invocation."""
 
     question: str
+
     raw: Dict[str, Any] = Field(
-        default_factory=dict, description="The agent's output dictionary, unmodified."
+        default_factory=dict,
+        description="The agent's output dictionary, unmodified.",
     )
-    metric: Optional[str] = Field(default=None, description="Metric name as the agent named it.")
-    dimension: Optional[str] = Field(default=None)
-    operation: Optional[str] = Field(default=None)
-    year: Optional[int] = Field(default=None, description="Year filter extracted by the agent.")
-    ambiguity: AmbiguityInfo = Field(default_factory=AmbiguityInfo)
+
+    metric: Optional[str] = Field(
+        default=None,
+        description="Metric name as the agent named it.",
+    )
+
+    dimension: Optional[str] = Field(
+        default=None,
+        description="Dimension name as the agent named it.",
+    )
+
+    operation: Optional[str] = Field(
+        default=None,
+        description="Operation as the agent named it.",
+    )
+
+    year: Optional[int] = Field(
+        default=None,
+        description="Year filter extracted by the agent.",
+    )
+
+    market: Optional[str] = Field(
+        default=None,
+        description="Market filter extracted by the agent.",
+    )
+
+    ambiguity: AmbiguityInfo = Field(
+        default_factory=AmbiguityInfo,
+    )
 
 
 class AgentService:
     """Service wrapper around the AI agent adapter."""
 
-    def __init__(self, adapter: Optional[LocalAgentAdapter] = None) -> None:
+    def __init__(
+        self,
+        adapter: Optional[LocalAgentAdapter] = None,
+    ) -> None:
         self._adapter = adapter or get_agent_adapter()
 
     @property
@@ -65,28 +93,55 @@ class AgentService:
     def interpret(self, question: str) -> AgentInterpretation:
         """Run the agent and normalise its output.
 
-        Raises :class:`~app.core.errors.AgentError` or
-        :class:`~app.core.errors.AgentUnavailableError` on failure.
+        Raises:
+            AgentError or AgentUnavailableError on failure.
         """
+
         raw = self._adapter.interpret(question)
 
+        # Extract ambiguity information.
         raw_ambiguity = raw.get("ambiguity")
+
         if isinstance(raw_ambiguity, dict):
             ambiguity = AmbiguityInfo(
-                ambiguous=bool(raw_ambiguity.get("ambiguous", False)),
+                ambiguous=bool(
+                    raw_ambiguity.get("ambiguous", False)
+                ),
                 reason=raw_ambiguity.get("reason"),
-                possible_metrics=list(raw_ambiguity.get("possible_metrics") or []),
+                possible_metrics=list(
+                    raw_ambiguity.get("possible_metrics") or []
+                ),
             )
         else:
             ambiguity = AmbiguityInfo()
 
+        # Extract filters produced by the agent.
         raw_filters = raw.get("filters")
-        year: Optional[int] = None
-        if isinstance(raw_filters, dict):
-            candidate = raw_filters.get("Year")
-            if isinstance(candidate, int) and not isinstance(candidate, bool):
-                year = candidate
 
+        year: Optional[int] = None
+        market: Optional[str] = None
+
+        if isinstance(raw_filters, dict):
+
+            # Year filter.
+            candidate_year = raw_filters.get("Year")
+
+            if (
+                isinstance(candidate_year, int)
+                and not isinstance(candidate_year, bool)
+            ):
+                year = candidate_year
+
+            # Market filter.
+            candidate_market = raw_filters.get("Market")
+
+            if (
+                isinstance(candidate_market, str)
+                and candidate_market.strip()
+            ):
+                market = candidate_market.strip()
+
+        # Extract core semantic fields.
         metric = raw.get("metric")
         dimension = raw.get("dimension")
         operation = raw.get("operation")
@@ -95,16 +150,30 @@ class AgentService:
             question=question,
             raw=raw,
             metric=metric if isinstance(metric, str) else None,
-            dimension=dimension if isinstance(dimension, str) else None,
-            operation=operation if isinstance(operation, str) else None,
+            dimension=(
+                dimension
+                if isinstance(dimension, str)
+                else None
+            ),
+            operation=(
+                operation
+                if isinstance(operation, str)
+                else None
+            ),
             year=year,
+            market=market,
             ambiguity=ambiguity,
         )
 
 
 def get_agent_service() -> AgentService:
     """FastAPI dependency returning the agent service."""
+
     return AgentService()
 
 
-__all__ = ["AgentInterpretation", "AgentService", "get_agent_service"]
+__all__ = [
+    "AgentInterpretation",
+    "AgentService",
+    "get_agent_service",
+]
