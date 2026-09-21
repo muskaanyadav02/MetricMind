@@ -394,9 +394,19 @@ def translate_agent_output(
         filters=filters,
         time_dimensions=[],
         order_by=order_by,
-        limit=min(
-            default_limit,
-            max_limit,
+        limit=(
+            1
+            if (
+                dimension
+                and operation in {
+                    OPERATION_HIGHEST,
+                    OPERATION_LOWEST,
+                }
+            )
+            else min(
+                default_limit,
+                max_limit,
+            )
         ),
     )
 
