@@ -1,6 +1,6 @@
 import re
 
-from schema import METRICS, DIMENSIONS
+from schema import METRICS, DIMENSIONS, TIME_GRANULARITIES
 
 
 METRIC_ALIASES = {
@@ -91,6 +91,63 @@ def identify_dimension(question):
     return None
 
 
+def identify_time_granularity(question):
+    """
+    Detect time-series intent separately from normal business dimensions.
+
+    Examples:
+
+    "monthly sales trend" -> Month
+    "sales by month" -> Month
+    "monthly revenue" -> Month
+    "quarterly profit" -> Quarter
+    "profit by quarter" -> Quarter
+    "yearly sales" -> Year
+    "sales by year" -> Year
+    """
+
+    question_lower = question.lower()
+
+    time_aliases = {
+        "Month": [
+            "monthly",
+            "by month",
+            "per month",
+            "each month",
+            "month over month",
+            "month-on-month",
+            "mom",
+        ],
+        "Quarter": [
+            "quarterly",
+            "by quarter",
+            "per quarter",
+            "each quarter",
+            "quarter over quarter",
+            "quarter-on-quarter",
+            "qoq",
+        ],
+        "Year": [
+            "yearly",
+            "annually",
+            "annual",
+            "by year",
+            "per year",
+            "each year",
+            "year over year",
+            "year-on-year",
+            "yoy",
+        ],
+    }
+
+    for granularity, aliases in time_aliases.items():
+        for alias in aliases:
+            if alias in question_lower:
+                return granularity
+
+    return None
+
+
 def identify_year(question):
     match = re.search(r"\b(20\d{2})\b", question)
 
@@ -165,6 +222,29 @@ def identify_operation(question):
     return None
 
 
+def identify_time_operation(question):
+    """
+    Time-series questions such as "monthly sales trend" need
+    an aggregation operation, but the user is not asking for
+    highest/lowest/compare.
+
+    Therefore a time-series query defaults to total.
+    """
+
+    time_granularity = identify_time_granularity(question)
+
+    if time_granularity is None:
+        return None
+
+    operation = identify_operation(question)
+
+    # Explicit ranking/comparison operations must remain unchanged.
+    if operation is not None:
+        return operation
+
+    return "total"
+
+
 def detect_ambiguity(question):
     question_lower = question.lower()
 
@@ -210,16 +290,37 @@ def build_query(question):
     a structured agent query.
 
     No raw SQL is generated here.
+
+    The query can contain either:
+    - a normal business dimension, such as Country or Category
+    - a time granularity, such as Month or Quarter
+
+    Time granularity is kept separate because the semantic
+    layer handles it through a Cube time dimension.
     """
+
+    metric = identify_metric(question)
+    dimension = identify_dimension(question)
+    time_granularity = identify_time_granularity(question)
+
+    # If the question is clearly asking for a time series,
+    # "Year" should be represented as a time granularity
+    # rather than as an ordinary categorical dimension.
+    if time_granularity is not None:
+        if dimension == "Year":
+            dimension = None
+
+    operation = identify_time_operation(question)
 
     return {
         "question": question,
-        "metric": identify_metric(question),
-        "dimension": identify_dimension(question),
+        "metric": metric,
+        "dimension": dimension,
+        "time_granularity": time_granularity,
         "filters": {
             "Year": identify_year(question),
             "Market": identify_market(question),
         },
-        "operation": identify_operation(question),
+        "operation": operation,
         "ambiguity": detect_ambiguity(question),
     }
