@@ -122,6 +122,41 @@ def test_yearly_sales_trend():
 
     assert query["operation"] == "total"
 
+def test_no_data_for_unavailable_year():
+    result = process_question(
+        "Show monthly sales in 2024"
+    )
+
+    assert result["validation"]["valid"] is True
+
+    assert result["semantic_result"] is not None
+
+    assert result["semantic_result"]["data"] == []
+
+    assert (
+        "No data was found for 2024"
+        in result["response"]
+    )
+
+
+def test_data_exists_for_2014():
+    result = process_question(
+        "Show monthly sales in 2014"
+    )
+
+    assert result["validation"]["valid"] is True
+
+    assert result["semantic_result"] is not None
+
+    assert len(
+        result["semantic_result"]["data"]
+    ) == 12
+
+    assert (
+        result["response"]
+        == "Query executed successfully through the governed semantic layer."
+    )
+
 
 # -------------------------------------------------------------------
 # Run manual tests only when this file is executed directly
