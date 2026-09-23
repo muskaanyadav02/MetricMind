@@ -1,4 +1,6 @@
-from agent import process_question
+from query_builder import build_query
+from validator import validate_query
+from llm_agent import ask_llm, parse_llm_response
 
 
 # -------------------------------------------------------------------
@@ -23,8 +25,13 @@ questions = [
 
 def run_manual_tests():
     """
-    Run real end-to-end agent + Cube tests.
+    Run real end-to-end LLM + agent + Cube tests.
+
+    This function is intentionally manual so that pytest
+    does not repeatedly invoke the local Llama model.
     """
+
+    from agent import process_question
 
     for question in questions:
 
@@ -52,18 +59,18 @@ def run_manual_tests():
 
 
 # -------------------------------------------------------------------
-# Automated time-series tests
+# Fast deterministic query tests
 # -------------------------------------------------------------------
 
 def test_monthly_sales_trend():
 
-    result = process_question(
+    query = build_query(
         "Show the monthly sales trend"
     )
 
-    query = result["query"]
+    validation = validate_query(query)
 
-    assert result["validation"]["valid"] is True
+    assert validation["valid"] is True
 
     assert query["metric"] == "Sales"
 
@@ -74,13 +81,13 @@ def test_monthly_sales_trend():
 
 def test_monthly_sales_with_year_filter():
 
-    result = process_question(
+    query = build_query(
         "Show monthly sales in 2014"
     )
 
-    query = result["query"]
+    validation = validate_query(query)
 
-    assert result["validation"]["valid"] is True
+    assert validation["valid"] is True
 
     assert query["metric"] == "Sales"
 
@@ -91,13 +98,13 @@ def test_monthly_sales_with_year_filter():
 
 def test_quarterly_sales_trend():
 
-    result = process_question(
+    query = build_query(
         "Show the quarterly sales trend"
     )
 
-    query = result["query"]
+    validation = validate_query(query)
 
-    assert result["validation"]["valid"] is True
+    assert validation["valid"] is True
 
     assert query["metric"] == "Sales"
 
@@ -108,13 +115,13 @@ def test_quarterly_sales_trend():
 
 def test_yearly_sales_trend():
 
-    result = process_question(
+    query = build_query(
         "Show the yearly sales trend"
     )
 
-    query = result["query"]
+    validation = validate_query(query)
 
-    assert result["validation"]["valid"] is True
+    assert validation["valid"] is True
 
     assert query["metric"] == "Sales"
 
@@ -122,40 +129,45 @@ def test_yearly_sales_trend():
 
     assert query["operation"] == "total"
 
+
+# -------------------------------------------------------------------
+# Fast query-builder no-data test
+# -------------------------------------------------------------------
+
 def test_no_data_for_unavailable_year():
-    result = process_question(
+
+    query = build_query(
         "Show monthly sales in 2024"
     )
 
-    assert result["validation"]["valid"] is True
+    validation = validate_query(query)
 
-    assert result["semantic_result"] is not None
+    assert validation["valid"] is True
 
-    assert result["semantic_result"]["data"] == []
+    assert query["filters"]["Year"] == 2024
 
-    assert (
-        "No data was found for 2024"
-        in result["response"]
+    assert query["time_granularity"] == "Month"
+
+
+# -------------------------------------------------------------------
+# LLM integration test
+# -------------------------------------------------------------------
+
+def test_llm_parser():
+
+    response = ask_llm(
+        "Which category has the highest profit in 2024?"
     )
 
+    parsed = parse_llm_response(response)
 
-def test_data_exists_for_2014():
-    result = process_question(
-        "Show monthly sales in 2014"
-    )
+    assert parsed["metric"] == "Profit"
 
-    assert result["validation"]["valid"] is True
+    assert parsed["dimension"] == "Category"
 
-    assert result["semantic_result"] is not None
+    assert parsed["operation"] == "highest"
 
-    assert len(
-        result["semantic_result"]["data"]
-    ) == 12
-
-    assert (
-        result["response"]
-        == "Query executed successfully through the governed semantic layer."
-    )
+    assert parsed["filters"]["Year"] == 2024
 
 
 # -------------------------------------------------------------------

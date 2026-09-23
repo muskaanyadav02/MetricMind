@@ -1,6 +1,7 @@
 from query_builder import build_query
 from validator import validate_query
 from semantic_client import execute_query
+from llm_agent import ask_llm, parse_llm_response
 
 
 def _build_no_data_response(structured_query):
@@ -109,7 +110,7 @@ def _execute_root_cause_analysis(
 
     secondary_metrics = root_cause_plan.get(
         "secondary_metrics",
-        []
+        [],
     )
 
     analysis = []
@@ -126,6 +127,7 @@ def _execute_root_cause_analysis(
         )
 
         if not secondary_validation["valid"]:
+
             analysis.append(
                 {
                     "metric": secondary_metric,
@@ -137,9 +139,11 @@ def _execute_root_cause_analysis(
                     ),
                 }
             )
+
             continue
 
         try:
+
             secondary_result = execute_query(
                 secondary_query
             )
@@ -155,6 +159,7 @@ def _execute_root_cause_analysis(
             )
 
         except Exception as e:
+
             analysis.append(
                 {
                     "metric": secondary_metric,
@@ -168,26 +173,203 @@ def _execute_root_cause_analysis(
     return analysis
 
 
+def _build_llm_query(question):
+    """
+    Ask Llama to interpret the business question and convert
+    its governed response into the agent's internal schema.
+
+    Deterministic query_builder logic is used to enrich
+    the LLM result with time-series and root-cause information.
+    """
+
+    llm_response = ask_llm(question)
+
+    parsed = parse_llm_response(
+        llm_response
+    )
+
+    # Use the deterministic builder for information that the
+    # current LLM prompt does not explicitly represent, such
+    # as time granularity, root-cause intent and ambiguity.
+    deterministic_query = build_query(
+        question
+    )
+
+    # ---------------------------------------------------------------
+    # Filters
+    # ---------------------------------------------------------------
+
+    filters = {
+        "Year": parsed["filters"].get("Year"),
+        "Market": parsed["filters"].get("Market"),
+    }
+
+    deterministic_filters = (
+        deterministic_query.get(
+            "filters",
+            {}
+        )
+    )
+
+    # Preserve deterministic filter detection if the LLM
+    # does not explicitly provide the filter.
+    if filters["Year"] is None:
+        filters["Year"] = deterministic_filters.get(
+            "Year"
+        )
+
+    if filters["Market"] is None:
+        filters["Market"] = deterministic_filters.get(
+            "Market"
+        )
+
+    # ---------------------------------------------------------------
+    # Time-series information
+    # ---------------------------------------------------------------
+
+    time_granularity = deterministic_query.get(
+        "time_granularity"
+    )
+
+    dimension = parsed.get(
+        "dimension"
+    )
+
+    # The LLM may interpret words such as "time" as a dimension.
+    # Time is handled through the governed time_granularity field,
+    # not as a normal categorical dimension.
+    if dimension is not None and dimension.lower() == "time":
+        dimension = None
+
+    # A time-series query should not keep Year as a
+    # categorical dimension.
+    if time_granularity is not None:
+        if dimension == "Year":
+            dimension = None
+
+    # ---------------------------------------------------------------
+    # Root-cause information
+    # ---------------------------------------------------------------
+
+    root_cause = deterministic_query.get(
+        "root_cause",
+        False,
+    )
+
+    root_cause_plan = deterministic_query.get(
+        "root_cause_plan"
+    )
+
+    # ---------------------------------------------------------------
+    # Metric
+    # ---------------------------------------------------------------
+
+    metric = parsed.get(
+        "metric"
+    )
+
+    # ---------------------------------------------------------------
+    # Operation
+    # ---------------------------------------------------------------
+
+    operation = parsed.get(
+        "operation"
+    )
+
+    # Natural-language words such as "drop", "decline",
+    # "fall" and "decrease" are root-cause intent indicators.
+    # They are NOT governed query operations.
+    #
+    # For root-cause questions we first retrieve the primary
+    # metric using a normal total query, then investigate
+    # secondary governed metrics.
+    if root_cause:
+        operation = "total"
+
+    # Time-series questions without an explicit operation
+    # should retrieve the metric across the requested period.
+    if (
+        operation is None
+        and time_granularity is not None
+    ):
+        operation = "total"
+
+    # ---------------------------------------------------------------
+    # Return final governed internal query
+    # ---------------------------------------------------------------
+
+    return {
+        "question": question,
+        "metric": metric,
+        "dimension": dimension,
+        "time_granularity": time_granularity,
+        "filters": filters,
+        "operation": operation,
+        "root_cause": root_cause,
+        "root_cause_plan": root_cause_plan,
+        "ambiguity": deterministic_query.get(
+            "ambiguity",
+            {},
+        ),
+    }
+
+
+def _interpret_question(question):
+    """
+    Interpret the question using Llama first.
+
+    If the LLM is unavailable or produces an invalid
+    governed response, fall back to the deterministic
+    query builder.
+
+    Every resulting query still passes through validation.
+    """
+
+    try:
+
+        return _build_llm_query(
+            question
+        )
+
+    except Exception as e:
+
+        print(
+            "LLM interpretation failed; "
+            "using deterministic fallback: "
+            f"{e}",
+            flush=True,
+        )
+
+        return build_query(
+            question
+        )
+
+
 def process_question(question):
     """
     Process a natural-language business question.
 
     Flow:
-    1. Build a structured semantic query.
-    2. Check ambiguity.
-    3. Validate the structured query.
-    4. Execute the validated query through Cube.
-    5. Detect empty results.
-    6. If root-cause intent exists, execute governed
-       secondary queries.
-    7. Return the primary result and root-cause evidence.
+
+    1. Validate question input.
+    2. Interpret question using Llama + LangChain.
+    3. Fall back to deterministic interpretation if needed.
+    4. Check ambiguity.
+    5. Validate the governed structured query.
+    6. Execute primary query through Cube.
+    7. Detect empty results.
+    8. Execute secondary queries for root-cause analysis.
+    9. Return primary and secondary evidence.
     """
 
     # ---------------------------------------------------------------
     # Step 0: Validate question input
     # ---------------------------------------------------------------
 
-    if not isinstance(question, str) or not question.strip():
+    if not isinstance(
+        question,
+        str,
+    ) or not question.strip():
 
         return {
             "query": {},
@@ -203,10 +385,12 @@ def process_question(question):
         }
 
     # ---------------------------------------------------------------
-    # Step 1: Build structured semantic query
+    # Step 1: Interpret using Llama + LangChain
     # ---------------------------------------------------------------
 
-    structured_query = build_query(question)
+    structured_query = _interpret_question(
+        question
+    )
 
     # ---------------------------------------------------------------
     # Step 2: Check ambiguity
@@ -214,20 +398,25 @@ def process_question(question):
 
     ambiguity = structured_query.get(
         "ambiguity",
-        {}
+        {},
     )
 
-    if ambiguity.get("ambiguous", False):
+    if ambiguity.get(
+        "ambiguous",
+        False,
+    ):
 
         possible_metrics = ambiguity.get(
             "possible_metrics",
-            []
+            [],
         )
 
         response = (
             "Your question is ambiguous. "
             "Please specify which metric you mean: "
-            + ", ".join(possible_metrics)
+            + ", ".join(
+                possible_metrics
+            )
             + "."
         )
 
@@ -243,7 +432,7 @@ def process_question(question):
         }
 
     # ---------------------------------------------------------------
-    # Step 3: Validate structured query
+    # Step 3: Validate the governed structured query
     # ---------------------------------------------------------------
 
     validation_result = validate_query(
@@ -254,7 +443,7 @@ def process_question(question):
 
         errors = validation_result.get(
             "errors",
-            []
+            [],
         )
 
         response = (
@@ -295,7 +484,7 @@ def process_question(question):
 
     data = semantic_result.get(
         "data",
-        []
+        [],
     )
 
     if not data:
@@ -336,10 +525,12 @@ def process_question(question):
         successful_secondary_queries = [
             item
             for item in root_cause_analysis
-            if item.get("semantic_result") is not None
+            if item.get(
+                "semantic_result"
+            ) is not None
             and item["semantic_result"].get(
                 "data",
-                []
+                [],
             )
         ]
 
