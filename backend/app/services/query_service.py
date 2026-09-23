@@ -39,6 +39,7 @@ from app.schemas.semantic import (
     MetricDefinition,
     OrderBy,
     QueryFilter,
+    TimeDimension,
 )
 from app.services.agent_service import AgentInterpretation
 from app.services.metric_service import (
@@ -101,6 +102,7 @@ _COMPARISON_OPERATORS: Dict[str, str] = {
 # Translation
 # ---------------------------------------------------------------------------
 
+
 class TranslationOutcome(BaseModel):
     """Result of translating the agent's output into a governed query."""
 
@@ -148,7 +150,10 @@ def translate_agent_output(
     notes: List[str] = []
     ambiguity = interpretation.ambiguity
 
+    # ------------------------------------------------------------------
     # 1. Agent ambiguity
+    # ------------------------------------------------------------------
+
     if ambiguity.ambiguous:
         reason = (
             ambiguity.reason
@@ -167,7 +172,10 @@ def translate_agent_output(
             ambiguity=ambiguity,
         )
 
+    # ------------------------------------------------------------------
     # 2. Metric is mandatory
+    # ------------------------------------------------------------------
+
     if not interpretation.metric:
         notes.append(
             "The AI agent did not identify any governed metric "
@@ -220,7 +228,10 @@ def translate_agent_output(
             f"({metric.formula})."
         )
 
+    # ------------------------------------------------------------------
     # 3. Dimension is optional
+    # ------------------------------------------------------------------
+
     dimension: Optional[DimensionDefinition] = None
 
     if interpretation.dimension:
@@ -258,7 +269,10 @@ def translate_agent_output(
                 "dictionary; treat its values as ungoverned."
             )
 
+    # ------------------------------------------------------------------
     # 4. Operation
+    # ------------------------------------------------------------------
+
     operation = interpretation.operation
 
     if operation in UNSUPPORTED_OPERATIONS:
@@ -291,7 +305,10 @@ def translate_agent_output(
             ambiguity,
         )
 
+    # ------------------------------------------------------------------
     # 5. Assemble governed query
+    # ------------------------------------------------------------------
+
     measures = [metric.name]
 
     dimensions = (
@@ -302,7 +319,10 @@ def translate_agent_output(
 
     filters: List[QueryFilter] = []
 
+    # ------------------------------------------------------------------
     # Year filter
+    # ------------------------------------------------------------------
+
     if interpretation.year is not None:
         filters.append(
             QueryFilter(
@@ -318,7 +338,10 @@ def translate_agent_output(
             "(fact_sales.YEAR)."
         )
 
+    # ------------------------------------------------------------------
     # Market filter
+    # ------------------------------------------------------------------
+
     if interpretation.market is not None:
         filters.append(
             QueryFilter(
@@ -334,10 +357,68 @@ def translate_agent_output(
             "(fact_sales.MARKET)."
         )
 
+    # ------------------------------------------------------------------
+    # Time-series dimensions
+    #
+    # Agent output:
+    #
+    #     Month
+    #     Quarter
+    #     Year
+    #
+    # Cube representation:
+    #
+    #     FactSales.orderDate + month
+    #     FactSales.orderDate + quarter
+    #     FactSales.orderDate + year
+    # ------------------------------------------------------------------
+
+    time_dimensions: List[TimeDimension] = []
+
+    if interpretation.time_granularity:
+        granularity_map = {
+            "Month": "month",
+            "Quarter": "quarter",
+            "Year": "year",
+        }
+
+        granularity = granularity_map.get(
+            interpretation.time_granularity
+        )
+
+        if granularity is None:
+            return _unsupported(
+                f"Unsupported time granularity "
+                f"'{interpretation.time_granularity}'.",
+                notes,
+                ambiguity,
+            )
+
+        time_dimensions.append(
+            TimeDimension(
+                dimension="FactSales.orderDate",
+                granularity=granularity,
+            )
+        )
+
+        notes.append(
+            f"Agent time granularity "
+            f"'{interpretation.time_granularity}' was translated "
+            f"to Cube granularity '{granularity}' using "
+            "FactSales.orderDate."
+        )
+
+    # ------------------------------------------------------------------
     # Ordering
+    # ------------------------------------------------------------------
+
     order_by: List[OrderBy] = []
 
-    if (
+    # Time-series results must remain chronological.
+    if time_dimensions:
+        pass
+
+    elif (
         dimension
         and operation == OPERATION_HIGHEST
     ):
@@ -382,6 +463,27 @@ def translate_agent_output(
             "for a deterministic row limit."
         )
 
+    # ------------------------------------------------------------------
+    # Result limit
+    # ------------------------------------------------------------------
+
+    if time_dimensions:
+        query_limit = min(
+            1000,
+            max_limit,
+        )
+
+        notes.append(
+            "Time-series query limit increased to support "
+            "monthly, quarterly, or yearly result sets."
+        )
+
+    else:
+        query_limit = min(
+            default_limit,
+            max_limit,
+        )
+
     notes.append(
         "Answer text is generated deterministically from the "
         "returned rows; no language model is invoked by the "
@@ -392,7 +494,7 @@ def translate_agent_output(
         measures=measures,
         dimensions=dimensions,
         filters=filters,
-        time_dimensions=[],
+        time_dimensions=time_dimensions,
         order_by=order_by,
         limit=(
             1
@@ -403,10 +505,7 @@ def translate_agent_output(
                     OPERATION_LOWEST,
                 }
             )
-            else min(
-                default_limit,
-                max_limit,
-            )
+            else query_limit
         ),
     )
 
@@ -421,6 +520,7 @@ def translate_agent_output(
 # ---------------------------------------------------------------------------
 # Compilation
 # ---------------------------------------------------------------------------
+
 
 def _resolve_measures(
     names: Sequence[str],
@@ -661,7 +761,10 @@ def compile_governed_query(
     select_parts: List[str] = []
     columns: List[str] = []
 
+    # ------------------------------------------------------------------
     # Dimensions
+    # ------------------------------------------------------------------
+
     for dimension in dimensions:
         expression = _column_expression(
             dimension
@@ -675,7 +778,96 @@ def compile_governed_query(
             dimension.name
         )
 
+    # ------------------------------------------------------------------
+    # Time dimensions
+    # ------------------------------------------------------------------
+
+    time_group_by_parts: List[str] = []
+
+    for time_dimension in governed_query.time_dimensions:
+        if time_dimension.dimension != "FactSales.orderDate":
+            raise ValidationFailedError(
+                f"Unsupported time dimension "
+                f"'{time_dimension.dimension}'.",
+                details=[
+                    {
+                        "field": "time_dimensions",
+                        "message": (
+                            "Only FactSales.orderDate "
+                            "is supported for time-series queries."
+                        ),
+                    }
+                ],
+            )
+
+        granularity = time_dimension.granularity
+
+        if granularity == "year":
+            expression = (
+                f"EXTRACT(YEAR FROM "
+                f"{FACT_ALIAS}.ORDER_DATE)"
+            )
+            column_name = "Year"
+
+        elif granularity == "quarter":
+            expression = (
+                f"DATE_TRUNC('QUARTER', "
+                f"{FACT_ALIAS}.ORDER_DATE)"
+            )
+            column_name = "Quarter"
+
+        elif granularity == "month":
+            expression = (
+                f"DATE_TRUNC('MONTH', "
+                f"{FACT_ALIAS}.ORDER_DATE)"
+            )
+            column_name = "Month"
+
+        elif granularity == "week":
+            expression = (
+                f"DATE_TRUNC('WEEK', "
+                f"{FACT_ALIAS}.ORDER_DATE)"
+            )
+            column_name = "Week"
+
+        elif granularity == "day":
+            expression = (
+                f"DATE_TRUNC('DAY', "
+                f"{FACT_ALIAS}.ORDER_DATE)"
+            )
+            column_name = "Day"
+
+        else:
+            raise ValidationFailedError(
+                f"Unsupported time granularity "
+                f"'{granularity}'.",
+                details=[
+                    {
+                        "field": "time_dimensions",
+                        "message": (
+                            f"Unsupported granularity "
+                            f"'{granularity}'."
+                        ),
+                    }
+                ],
+            )
+
+        select_parts.append(
+            f'{expression} AS "{column_name}"'
+        )
+
+        columns.append(
+            column_name
+        )
+
+        time_group_by_parts.append(
+            expression
+        )
+
+    # ------------------------------------------------------------------
     # Measures
+    # ------------------------------------------------------------------
+
     for metric in metrics:
         select_parts.append(
             f'{metric.sql_expression} '
@@ -685,6 +877,10 @@ def compile_governed_query(
         columns.append(
             metric.name
         )
+
+    # ------------------------------------------------------------------
+    # FROM clause
+    # ------------------------------------------------------------------
 
     fact_table = qualified_model_name(
         settings,
@@ -725,7 +921,13 @@ def compile_governed_query(
             f"ON {condition}"
         )
 
-        joined_models.append(model)
+        joined_models.append(
+            model
+        )
+
+    # ------------------------------------------------------------------
+    # WHERE clause
+    # ------------------------------------------------------------------
 
     where_clauses, parameters = (
         _build_where_clause(
@@ -734,10 +936,23 @@ def compile_governed_query(
         )
     )
 
+    # ------------------------------------------------------------------
+    # GROUP BY
+    # ------------------------------------------------------------------
+
     group_by_parts = [
         _column_expression(dimension)
         for dimension in dimensions
     ]
+
+    # Add time-series grouping.
+    group_by_parts.extend(
+        time_group_by_parts
+    )
+
+    # ------------------------------------------------------------------
+    # ORDER BY
+    # ------------------------------------------------------------------
 
     order_parts: List[str] = []
 
@@ -774,6 +989,17 @@ def compile_governed_query(
             f"{expression} {direction}"
         )
 
+    # Time-series queries should be chronological.
+    if time_group_by_parts:
+        order_parts.extend(
+            f"{expression} ASC"
+            for expression in time_group_by_parts
+        )
+
+    # ------------------------------------------------------------------
+    # LIMIT
+    # ------------------------------------------------------------------
+
     requested_limit = (
         governed_query.limit
         or settings.default_result_rows
@@ -786,6 +1012,10 @@ def compile_governed_query(
             int(settings.max_result_rows),
         ),
     )
+
+    # ------------------------------------------------------------------
+    # SQL assembly
+    # ------------------------------------------------------------------
 
     sql_lines = [
         "SELECT",
@@ -822,8 +1052,6 @@ def compile_governed_query(
         source_model=fact_table,
         columns=columns,
     )
-
-
 def build_cube_payload(
     governed_query: GovernedQuery,
 ) -> Dict[str, Any]:
@@ -877,6 +1105,7 @@ def build_cube_payload(
 # ---------------------------------------------------------------------------
 # Execution
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class QueryExecution:
