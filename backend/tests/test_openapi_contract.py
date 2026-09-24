@@ -26,6 +26,7 @@ from app.core.errors import (
 )
 from app.main import CORRELATION_ID_HEADER, create_app
 
+
 app = create_app()
 schema = app.openapi()
 
@@ -56,7 +57,11 @@ def test_health_documents_a_response_model(path: str) -> None:
     operation = schema["paths"][path]["get"]
 
     assert "requestBody" not in operation
-    ref = operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+
+    ref = operation["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
+
     assert ref.endswith("/HealthResponse")
 
 
@@ -64,26 +69,45 @@ def test_health_documents_the_standard_error_envelope() -> None:
     for path in ("/api/v1/health", "/health"):
         responses = _responses_for("get", path)
         error = responses["500"]
-        assert error["content"]["application/json"]["schema"]["$ref"].endswith(
-            "/ErrorResponse"
-        )
+
+        assert error["content"]["application/json"]["schema"][
+            "$ref"
+        ].endswith("/ErrorResponse")
+
         assert "internal_error" in error["description"]
 
 
 # ---------------------------------------------------------------------------
 # Semantic catalogues
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("path", ["/api/v1/metrics", "/api/v1/dimensions"])
-def test_semantic_catalogues_document_their_response_models(path: str) -> None:
+@pytest.mark.parametrize(
+    "path",
+    ["/api/v1/metrics", "/api/v1/dimensions"],
+)
+def test_semantic_catalogues_document_their_response_models(
+    path: str,
+) -> None:
     operation = schema["paths"][path]["get"]
 
     assert "requestBody" not in operation
-    ref = operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
-    expected = "MetricCatalogResponse" if path.endswith("metrics") else "DimensionCatalogResponse"
+
+    ref = operation["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
+
+    expected = (
+        "MetricCatalogResponse"
+        if path.endswith("metrics")
+        else "DimensionCatalogResponse"
+    )
+
     assert ref.endswith(f"/{expected}")
 
     error = operation["responses"]["500"]
-    assert error["content"]["application/json"]["schema"]["$ref"].endswith("/ErrorResponse")
+
+    assert error["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/ErrorResponse")
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +117,7 @@ def test_chat_query_documents_response_and_error_models() -> None:
     responses = _responses_for("post", "/api/v1/chat/query")
 
     success = responses["200"]["content"]["application/json"]["schema"]
+
     assert success["$ref"].endswith("/ChatQueryResponse")
 
     for status in ("422", "502", "503", "504"):
@@ -102,13 +127,22 @@ def test_chat_query_documents_response_and_error_models() -> None:
 
 
 def test_chat_query_error_descriptions_name_the_real_error_codes() -> None:
-    descriptions = _descriptions_for("post", "/api/v1/chat/query")
+    descriptions = _descriptions_for(
+        "post",
+        "/api/v1/chat/query",
+    )
 
     # Every code named in the documented descriptions must actually exist in
     # the error taxonomy — no invented codes.
-    for code in ("request_validation_error", "validation_failed", "warehouse_error",
-                 "agent_error", "configuration_error", "agent_unavailable",
-                 "warehouse_timeout"):
+    for code in (
+        "request_validation_error",
+        "validation_failed",
+        "warehouse_error",
+        "agent_error",
+        "configuration_error",
+        "agent_unavailable",
+        "warehouse_timeout",
+    ):
         assert code in descriptions
 
 
@@ -117,22 +151,31 @@ def test_chat_query_error_descriptions_name_the_real_error_codes() -> None:
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     ("method", "path"),
-    [("post", "/api/v1/validate/query"), ("post", "/api/v1/validate/data")],
+    [
+        ("post", "/api/v1/validate/query"),
+        ("post", "/api/v1/validate/data"),
+    ],
 )
 def test_validation_endpoints_document_response_and_error_models(
-    method: str, path: str
+    method: str,
+    path: str,
 ) -> None:
     responses = _responses_for(method, path)
 
     ref = responses["200"]["content"]["application/json"]["schema"]["$ref"]
+
     expected = (
-        "ValidateQueryResponse" if path.endswith("query") else "ValidateDataResponse"
+        "ValidateQueryResponse"
+        if path.endswith("query")
+        else "ValidateDataResponse"
     )
+
     assert ref.endswith(f"/{expected}")
 
     assert responses["422"]["content"]["application/json"]["schema"][
         "$ref"
     ].endswith("/ErrorResponse")
+
     assert responses["500"]["content"]["application/json"]["schema"][
         "$ref"
     ].endswith("/ErrorResponse")
@@ -144,14 +187,29 @@ def test_validation_endpoints_document_response_and_error_models(
 def test_every_documented_error_response_uses_the_error_envelope() -> None:
     for _path, operations in schema["paths"].items():
         for _method, operation in operations.items():
-            for _status, response in operation.get("responses", {}).items():
+            for _status, response in operation.get(
+                "responses",
+                {},
+            ).items():
                 if _status == "200":
                     continue
-                content = response.get("content", {}).get("application/json")
+
+                content = response.get(
+                    "content",
+                    {},
+                ).get("application/json")
+
                 if content is None:
                     continue
-                ref = content.get("schema", {}).get("$ref", "")
-                assert ref.endswith("/ErrorResponse"), (_path, _status, ref)
+
+                ref = content.get(
+                    "schema",
+                    {},
+                ).get("$ref", "")
+
+                assert ref.endswith(
+                    "/ErrorResponse"
+                ), (_path, _status, ref)
 
 
 # ---------------------------------------------------------------------------
@@ -163,53 +221,139 @@ def test_error_envelope_schema_matches_the_documented_contract() -> None:
     assert set(envelope["required"]) == {"error"}
 
     error_body = schema["components"]["schemas"]["ErrorBody"]
-    assert set(error_body["properties"]) == {"code", "message", "details", "correlation_id"}
-    assert set(error_body["required"]) == {"code", "message"}
+
+    assert set(error_body["properties"]) == {
+        "code",
+        "message",
+        "details",
+        "correlation_id",
+    }
+
+    assert set(error_body["required"]) == {
+        "code",
+        "message",
+    }
 
 
 def test_every_metricmind_error_code_is_reachable_from_the_envelope() -> None:
     """Guard the taxonomy itself: all defined codes are non-empty strings."""
-    assert EXPECTED_ERROR_CODES, "the error taxonomy must not be empty"
+
+    assert EXPECTED_ERROR_CODES, (
+        "the error taxonomy must not be empty"
+    )
+
     for code in EXPECTED_ERROR_CODES:
         assert isinstance(code, str) and code
 
 
+# ---------------------------------------------------------------------------
+# Runtime error contract tests
+#
+# These tests create their own app instances rather than using the shared
+# pytest client fixture. Therefore both the warehouse AND the AI agent must
+# be overridden here. Otherwise GitHub Actions would try to contact the local
+# Ollama server, which is not running in CI.
+# ---------------------------------------------------------------------------
 def test_every_error_response_carries_a_correlation_id_header() -> None:
     """The docs promise traceability; the runtime must echo the header."""
+
     from fastapi.testclient import TestClient
-    from tests.conftest import FakeWarehouse, get_warehouse
+
+    from tests.conftest import (
+        FakeWarehouse,
+        StubAgentAdapter,
+        agent_output,
+    )
+    from app.services.agent_service import (
+        AgentService,
+        get_agent_service,
+    )
+    from app.adapters.warehouse import get_warehouse
 
     test_app = create_app()
-    test_app.dependency_overrides[get_warehouse] = lambda: FakeWarehouse(
-        raises=RuntimeError("boom")
+
+    stub_agent = StubAgentAdapter(
+        {
+            "Show sales by country": agent_output(
+                "Show sales by country",
+                metric="Sales",
+                dimension="Country",
+            )
+        }
     )
-    with TestClient(test_app, raise_server_exceptions=False) as client:
+
+    test_app.dependency_overrides[get_agent_service] = (
+        lambda: AgentService(adapter=stub_agent)
+    )
+
+    test_app.dependency_overrides[get_warehouse] = (
+        lambda: FakeWarehouse(
+            raises=RuntimeError("boom")
+        )
+    )
+
+    with TestClient(
+        test_app,
+        raise_server_exceptions=False,
+    ) as client:
         response = client.post(
-            "/api/v1/chat/query", json={"question": "Show sales by country"}
+            "/api/v1/chat/query",
+            json={
+                "question": "Show sales by country"
+            },
         )
 
         assert response.status_code == 500
         assert response.json()["error"]["code"] == "internal_error"
-        # The correlation id is always present in the error *body* (that is what
-        # the envelope contract guarantees). Known gap, reported not fixed: on an
-        # unhandled exception the middleware never sees a response, so the
-        # X-Correlation-ID *header* is not echoed on 500s. Same correlation id is
-        # in the body and in the server log, so traceability still holds.
+
+        # The correlation id is always present in the error body.
         assert response.json()["error"]["correlation_id"]
 
 
 def test_handled_errors_echo_the_correlation_id_header_and_body() -> None:
-    """Handled errors pass back through the middleware, so the header is echoed."""
+    """Handled errors pass back through the middleware."""
+
     from fastapi.testclient import TestClient
-    from tests.conftest import FakeWarehouse, get_warehouse
+
+    from tests.conftest import (
+        FakeWarehouse,
+        StubAgentAdapter,
+        agent_output,
+    )
+    from app.services.agent_service import (
+        AgentService,
+        get_agent_service,
+    )
+    from app.adapters.warehouse import get_warehouse
 
     test_app = create_app()
-    test_app.dependency_overrides[get_warehouse] = lambda: FakeWarehouse(
-        configured=False
+
+    stub_agent = StubAgentAdapter(
+        {
+            "Show sales by country": agent_output(
+                "Show sales by country",
+                metric="Sales",
+                dimension="Country",
+            )
+        }
     )
+
+    test_app.dependency_overrides[get_agent_service] = (
+        lambda: AgentService(adapter=stub_agent)
+    )
+
+    test_app.dependency_overrides[get_warehouse] = (
+        lambda: FakeWarehouse(
+            configured=False
+        )
+    )
+
     with TestClient(test_app) as client:
         response = client.post(
-            "/api/v1/chat/query", json={"question": "Show sales by country"}
+            "/api/v1/chat/query",
+            json={
+                "question": "Show sales by country"
+            },
         )
 
         assert response.status_code == 503
@@ -218,14 +362,15 @@ def test_handled_errors_echo_the_correlation_id_header_and_body() -> None:
 
 
 def test_register_exception_handlers_is_wired_into_the_app() -> None:
-    """Sanity: the handlers that render the envelope are the ones in the docs."""
-    # create_app() must have registered them; a fresh app without registration
-    # would be the drift this guards against.
+    """Sanity: the documented exception handlers are registered."""
+
     fresh = create_app()
+
     assert any(
         handler.__name__ == "_handle_metricmind_error"
         for handler in fresh.exception_handlers.values()
         if hasattr(handler, "__name__")
     )
+
     # And the module-level helper is what main.py uses.
     assert callable(register_exception_handlers)
