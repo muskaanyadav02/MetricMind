@@ -56,7 +56,12 @@ function AskAI() {
         );
       }
 
+<<<<<<< Updated upstream
       // Add AI response with data and evidence
+=======
+      // Store the complete backend response so that
+      // AI interpretation and other evidence can be displayed.
+>>>>>>> Stashed changes
       setMessages((prev) => [
         ...prev,
         {
@@ -65,8 +70,12 @@ function AskAI() {
             result.answer ||
             result.message ||
             "I could not find an answer for this question.",
+<<<<<<< Updated upstream
           data: result.data || [],
           evidence: result.evidence || null,
+=======
+          result: result,
+>>>>>>> Stashed changes
         },
       ]);
     } catch (error) {
@@ -94,14 +103,35 @@ function AskAI() {
 
   return (
     <div className="ask-page">
+<<<<<<< Updated upstream
+=======
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">AI ASSISTANT</span>
+
+          <h1>Ask MetricMind</h1>
+
+          <p>
+            Ask questions about your sales, profit, products and regions.
+          </p>
+        </div>
+      </div>
+>>>>>>> Stashed changes
 
       <div className="ask-layout">
 
         {/* ================= CHAT CARD ================= */}
+<<<<<<< Updated upstream
         <div className="chat-card">
 
           {/* Chat header */}
+=======
+
+        <div className="chat-card">
+
+>>>>>>> Stashed changes
           <div className="chat-header">
+
             <div className="ai-avatar">
               <Sparkles size={20} />
             </div>
@@ -114,14 +144,21 @@ function AskAI() {
                 Online
               </span>
             </div>
+
           </div>
 
           {/* Chat messages */}
           <div className="chat-messages">
 
+<<<<<<< Updated upstream
             {/* Empty state */}
             {messages.length === 0 && (
+=======
+            {messages.length === 0 ? (
+
+>>>>>>> Stashed changes
               <div className="empty-chat">
+
                 <div className="empty-ai-icon">
                   <Bot size={28} />
                 </div>
@@ -132,7 +169,9 @@ function AskAI() {
                   Ask questions about sales, profit, products,
                   regions and more.
                 </p>
+
               </div>
+<<<<<<< Updated upstream
             )}
 
             {/* Messages */}
@@ -199,7 +238,113 @@ function AskAI() {
             ))}
 
             {/* Loading state */}
+=======
+
+            ) : (
+
+              messages.map((message, index) => (
+
+                <div
+                  key={index}
+                  className={`message ${message.type}`}
+                >
+
+                  <div className="message-icon">
+
+                    {message.type === "user" ? (
+                      <User size={14} />
+                    ) : (
+                      <Bot size={14} />
+                    )}
+
+                  </div>
+
+                  <div className="message-content">
+
+                    <strong>
+                      {message.type === "user"
+                        ? "You"
+                        : "MetricMind AI"}
+                    </strong>
+
+                    <p>{message.text}</p>
+
+
+                    {/* ================= AI INTERPRETATION ================= */}
+
+                    {message.type === "ai" &&
+                      message.result?.evidence && (
+
+                        <>
+
+                          <div className="ai-interpretation">
+
+                            <div className="interpretation-title">
+                              <Sparkles size={14} />
+                              AI Interpretation
+                            </div>
+
+
+                            <div className="interpretation-grid">
+
+                              <div>
+                                <span>Metric</span>
+
+                                <strong>
+                                  {message.result.evidence
+                                    .interpreted_metric || "—"}
+                                </strong>
+                              </div>
+
+
+                              <div>
+                                <span>Dimension</span>
+
+                                <strong>
+                                  {message.result.evidence
+                                    .interpreted_dimension || "—"}
+                                </strong>
+                              </div>
+
+
+                              <div>
+                                <span>Rows</span>
+
+                                <strong>
+                                  {message.result.evidence
+                                    .row_count ?? "—"}
+                                </strong>
+                              </div>
+
+                            </div>
+
+                          </div>
+
+
+                          {/* ================= GOVERNED QUERY ================= */}
+
+                          <div className="governed-badge">
+                            ✓ Governed semantic query
+                          </div>
+
+                        </>
+
+                      )}
+
+                  </div>
+
+                </div>
+
+              ))
+
+            )}
+
+
+            {/* ================= LOADING STATE ================= */}
+
+>>>>>>> Stashed changes
             {loading && (
+
               <div className="message ai">
 
                 <div className="message-icon">
@@ -207,19 +352,34 @@ function AskAI() {
                 </div>
 
                 <div className="message-content">
+
                   <strong>MetricMind AI</strong>
 
+<<<<<<< Updated upstream
                   <p className="thinking-text">
                     Thinking...
                   </p>
+=======
+                  <p>
+                    Analyzing your business question...
+                  </p>
+
+>>>>>>> Stashed changes
                 </div>
 
               </div>
+
             )}
 
           </div>
 
+<<<<<<< Updated upstream
           {/* Input */}
+=======
+
+          {/* ================= INPUT ================= */}
+
+>>>>>>> Stashed changes
           <div className="chat-input-area">
 
             <input
@@ -240,10 +400,18 @@ function AskAI() {
             <button
               type="button"
               onClick={() => askQuestion()}
+<<<<<<< Updated upstream
               disabled={!question.trim() || loading}
             >
               Ask
               <ArrowRight size={17} />
+=======
+              disabled={loading || !question.trim()}
+            >
+              {loading ? "Thinking..." : "Ask"}
+
+              <ArrowRight size={14} />
+>>>>>>> Stashed changes
             </button>
 
           </div>
@@ -251,28 +419,59 @@ function AskAI() {
         </div>
 
 
+<<<<<<< Updated upstream
         {/* ================= SUGGESTIONS CARD ================= */}
         <div className="suggestions-card">
 
           <h3>QUICK QUESTIONS</h3>
+=======
+        {/* ================= QUICK QUESTIONS ================= */}
+
+        <div className="suggestions-card">
+
+          <span className="eyebrow">
+            QUICK QUESTIONS
+          </span>
+
+          <h3>
+            Start exploring your data
+          </h3>
+>>>>>>> Stashed changes
 
           <p>
             Try one of these questions to begin.
           </p>
 
+
           <div className="suggestion-list">
 
+<<<<<<< Updated upstream
             {suggestions.map((suggestion, index) => (
+=======
+            {suggestions.map((suggestion) => (
+
+>>>>>>> Stashed changes
               <button
                 key={index}
                 type="button"
                 onClick={() => askQuestion(suggestion)}
                 disabled={loading}
               >
+<<<<<<< Updated upstream
                 <span>{suggestion}</span>
 
                 <ArrowRight size={15} />
+=======
+
+                <Sparkles size={14} />
+
+                {suggestion}
+
+                <ArrowRight size={13} />
+
+>>>>>>> Stashed changes
               </button>
+
             ))}
 
           </div>
