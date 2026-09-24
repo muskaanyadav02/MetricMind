@@ -16,7 +16,12 @@ METRICS = [
     "Average Order Value",
 ]
 
+
 # Approved business dimensions.
+#
+# These are categorical dimensions that can be used to group
+# business metrics.
+
 DIMENSIONS = [
     "Year",
     "Country",
@@ -27,4 +32,17 @@ DIMENSIONS = [
     "Product Name",
     "Ship Mode",
     "Order Priority",
+]
+
+
+# Approved time granularities.
+#
+# These are intentionally kept separate from DIMENSIONS because
+# Cube handles time grouping through a time dimension plus a
+# granularity such as month, quarter, or year.
+
+TIME_GRANULARITIES = [
+    "Year",
+    "Quarter",
+    "Month",
 ]

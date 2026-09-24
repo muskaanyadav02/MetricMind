@@ -1,4 +1,4 @@
-from schema import METRICS, DIMENSIONS
+from schema import METRICS, DIMENSIONS, TIME_GRANULARITIES
 
 
 SUPPORTED_OPERATIONS = {
@@ -27,6 +27,7 @@ def validate_query(query):
 
     metric = query.get("metric")
     dimension = query.get("dimension")
+    time_granularity = query.get("time_granularity")
     operation = query.get("operation")
 
     # Validate metric
@@ -35,9 +36,29 @@ def validate_query(query):
     elif metric not in METRICS:
         errors.append(f"Unsupported metric: '{metric}'.")
 
-    # Validate dimension
+    # Validate normal business dimension
     if dimension is not None and dimension not in DIMENSIONS:
         errors.append(f"Unsupported dimension: '{dimension}'.")
+
+    # Validate time granularity
+    if (
+        time_granularity is not None
+        and time_granularity not in TIME_GRANULARITIES
+    ):
+        errors.append(
+            f"Unsupported time granularity: '{time_granularity}'."
+        )
+
+    # A time-series query should not use Year as both
+    # a normal dimension and a time granularity.
+    if (
+        dimension == "Year"
+        and time_granularity is not None
+    ):
+        errors.append(
+            "Year cannot be used as both a dimension "
+            "and a time granularity."
+        )
 
     # Validate operation
     if operation is not None and operation not in SUPPORTED_OPERATIONS:
@@ -55,13 +76,17 @@ def validate_query(query):
             if not isinstance(year, int) or isinstance(year, bool):
                 errors.append("Year filter must be an integer.")
             elif year < 1900 or year > 2100:
-                errors.append("Year filter is outside the supported range.")
+                errors.append(
+                    "Year filter is outside the supported range."
+                )
 
     # Validate ambiguity structure
     ambiguity = query.get("ambiguity", {})
 
     if not isinstance(ambiguity, dict):
-        errors.append("Ambiguity information must be a dictionary.")
+        errors.append(
+            "Ambiguity information must be a dictionary."
+        )
 
     return {
         "valid": len(errors) == 0,
