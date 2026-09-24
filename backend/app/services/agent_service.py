@@ -14,7 +14,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.adapters.agent_loader import LocalAgentAdapter, get_agent_adapter
+from app.adapters.agent_loader import (
+    LocalAgentAdapter,
+    get_agent_adapter,
+)
 from app.core.logging import get_logger
 from app.schemas.chat import AmbiguityInfo
 
@@ -39,6 +42,14 @@ class AgentInterpretation(BaseModel):
     dimension: Optional[str] = Field(
         default=None,
         description="Dimension name as the agent named it.",
+    )
+
+    time_granularity: Optional[str] = Field(
+        default=None,
+        description=(
+            "Time granularity identified by the agent, "
+            "such as Year, Quarter, or Month."
+        ),
     )
 
     operation: Optional[str] = Field(
@@ -90,7 +101,10 @@ class AgentService:
     def declared_dimensions(self) -> List[str]:
         return self._adapter.declared_dimensions
 
-    def interpret(self, question: str) -> AgentInterpretation:
+    def interpret(
+        self,
+        question: str,
+    ) -> AgentInterpretation:
         """Run the agent and normalise its output.
 
         Raises:
@@ -99,67 +113,157 @@ class AgentService:
 
         raw = self._adapter.interpret(question)
 
+        # -----------------------------------------------------------
         # Extract ambiguity information.
+        # -----------------------------------------------------------
+
         raw_ambiguity = raw.get("ambiguity")
 
-        if isinstance(raw_ambiguity, dict):
+        if isinstance(
+            raw_ambiguity,
+            dict,
+        ):
             ambiguity = AmbiguityInfo(
                 ambiguous=bool(
-                    raw_ambiguity.get("ambiguous", False)
+                    raw_ambiguity.get(
+                        "ambiguous",
+                        False,
+                    )
                 ),
-                reason=raw_ambiguity.get("reason"),
+                reason=raw_ambiguity.get(
+                    "reason"
+                ),
                 possible_metrics=list(
-                    raw_ambiguity.get("possible_metrics") or []
+                    raw_ambiguity.get(
+                        "possible_metrics"
+                    )
+                    or []
                 ),
             )
         else:
             ambiguity = AmbiguityInfo()
 
+        # -----------------------------------------------------------
         # Extract filters produced by the agent.
+        # -----------------------------------------------------------
+
         raw_filters = raw.get("filters")
 
         year: Optional[int] = None
         market: Optional[str] = None
 
-        if isinstance(raw_filters, dict):
+        if isinstance(
+            raw_filters,
+            dict,
+        ):
 
             # Year filter.
-            candidate_year = raw_filters.get("Year")
+            candidate_year = raw_filters.get(
+                "Year"
+            )
 
             if (
-                isinstance(candidate_year, int)
-                and not isinstance(candidate_year, bool)
+                isinstance(
+                    candidate_year,
+                    int,
+                )
+                and not isinstance(
+                    candidate_year,
+                    bool,
+                )
             ):
                 year = candidate_year
 
             # Market filter.
-            candidate_market = raw_filters.get("Market")
+            candidate_market = raw_filters.get(
+                "Market"
+            )
 
             if (
-                isinstance(candidate_market, str)
+                isinstance(
+                    candidate_market,
+                    str,
+                )
                 and candidate_market.strip()
             ):
-                market = candidate_market.strip()
+                market = (
+                    candidate_market.strip()
+                )
 
+        # -----------------------------------------------------------
         # Extract core semantic fields.
+        # -----------------------------------------------------------
+
         metric = raw.get("metric")
         dimension = raw.get("dimension")
         operation = raw.get("operation")
 
+        # -----------------------------------------------------------
+        # IMPORTANT:
+        # Preserve time_granularity from the AI agent.
+        #
+        # Without this, a query such as:
+        #
+        #   Show the monthly sales trend
+        #
+        # becomes:
+        #
+        #   Sales + no dimension + total
+        #
+        # and the backend returns one grand total instead of
+        # monthly data.
+        # -----------------------------------------------------------
+
+        raw_time_granularity = raw.get(
+            "time_granularity"
+        )
+
+        time_granularity: Optional[str] = None
+
+        if (
+            isinstance(
+                raw_time_granularity,
+                str,
+            )
+            and raw_time_granularity.strip()
+        ):
+            time_granularity = (
+                raw_time_granularity.strip()
+            )
+
         return AgentInterpretation(
             question=question,
             raw=raw,
-            metric=metric if isinstance(metric, str) else None,
+
+            metric=(
+                metric
+                if isinstance(
+                    metric,
+                    str,
+                )
+                else None
+            ),
+
             dimension=(
                 dimension
-                if isinstance(dimension, str)
+                if isinstance(
+                    dimension,
+                    str,
+                )
                 else None
             ),
+
+            time_granularity=time_granularity,
+
             operation=(
                 operation
-                if isinstance(operation, str)
+                if isinstance(
+                    operation,
+                    str,
+                )
                 else None
             ),
+
             year=year,
             market=market,
             ambiguity=ambiguity,
