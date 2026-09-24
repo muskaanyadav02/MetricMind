@@ -7,8 +7,6 @@ import {
 
 import { useState } from "react";
 
-import ChartRenderer from "../components/ChartRenderer";
-
 import "./AskAI.css";
 
 function AskAI() {
@@ -21,7 +19,7 @@ function AskAI() {
 
     if (!clean || loading) return;
 
-    // Add user's question immediately
+    // Show user's question immediately
     setMessages((prev) => [
       ...prev,
       {
@@ -56,12 +54,8 @@ function AskAI() {
         );
       }
 
-<<<<<<< Updated upstream
-      // Add AI response with data and evidence
-=======
-      // Store the complete backend response so that
-      // AI interpretation and other evidence can be displayed.
->>>>>>> Stashed changes
+      // Store the complete backend response
+      // so evidence can be displayed in the UI.
       setMessages((prev) => [
         ...prev,
         {
@@ -70,17 +64,10 @@ function AskAI() {
             result.answer ||
             result.message ||
             "I could not find an answer for this question.",
-<<<<<<< Updated upstream
-          data: result.data || [],
-          evidence: result.evidence || null,
-=======
           result: result,
->>>>>>> Stashed changes
         },
       ]);
     } catch (error) {
-      console.error("MetricMind API error:", error);
-
       setMessages((prev) => [
         ...prev,
         {
@@ -89,6 +76,8 @@ function AskAI() {
             "I couldn't connect to the MetricMind backend. Please make sure the backend is running.",
         },
       ]);
+
+      console.error("MetricMind API error:", error);
     } finally {
       setLoading(false);
     }
@@ -103,142 +92,76 @@ function AskAI() {
 
   return (
     <div className="ask-page">
-<<<<<<< Updated upstream
-=======
+
+      {/* ================= PAGE HEADING ================= */}
+
       <div className="page-heading">
         <div>
-          <span className="eyebrow">AI ASSISTANT</span>
+          <span className="eyebrow">
+            AI ASSISTANT
+          </span>
 
-          <h1>Ask MetricMind</h1>
+          <h1>
+            Ask MetricMind
+          </h1>
 
           <p>
             Ask questions about your sales, profit, products and regions.
           </p>
         </div>
       </div>
->>>>>>> Stashed changes
+
 
       <div className="ask-layout">
 
         {/* ================= CHAT CARD ================= */}
-<<<<<<< Updated upstream
-        <div className="chat-card">
-
-          {/* Chat header */}
-=======
 
         <div className="chat-card">
 
->>>>>>> Stashed changes
+          {/* ================= CHAT HEADER ================= */}
+
           <div className="chat-header">
 
             <div className="ai-avatar">
-              <Sparkles size={20} />
+              <Sparkles size={19} />
             </div>
 
             <div>
-              <strong>MetricMind AI</strong>
+              <strong>
+                MetricMind AI
+              </strong>
 
               <span>
-                <i></i>
-                Online
+                <i />
+                {loading ? "Thinking..." : "Online"}
               </span>
             </div>
 
           </div>
 
-          {/* Chat messages */}
+
+          {/* ================= CHAT MESSAGES ================= */}
+
           <div className="chat-messages">
 
-<<<<<<< Updated upstream
-            {/* Empty state */}
-            {messages.length === 0 && (
-=======
             {messages.length === 0 ? (
 
->>>>>>> Stashed changes
               <div className="empty-chat">
 
                 <div className="empty-ai-icon">
-                  <Bot size={28} />
+                  <Bot size={27} />
                 </div>
 
-                <h3>Start exploring your data</h3>
+                <h3>
+                  What would you like to know?
+                </h3>
 
                 <p>
-                  Ask questions about sales, profit, products,
-                  regions and more.
+                  Ask a business question and MetricMind will analyze
+                  your data.
                 </p>
 
               </div>
-<<<<<<< Updated upstream
-            )}
-
-            {/* Messages */}
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`message ${
-                  message.type === "user"
-                    ? "user"
-                    : "ai"
-                }`}
-              >
-                <div className="message-icon">
-                  {message.type === "user" ? (
-                    <User size={17} />
-                  ) : (
-                    <Bot size={17} />
-                  )}
-                </div>
-
-                <div className="message-content">
-
-                  <strong>
-                    {message.type === "user"
-                      ? "You"
-                      : "MetricMind AI"}
-                  </strong>
-
-                  <p>{message.text}</p>
-
-                  {/* Dynamic chart */}
-                  {message.type === "ai" &&
-                    message.data?.length > 1 &&
-                    message.evidence?.dimensions?.length > 0 && (
-                      <div className="chart-wrapper">
-
-                        <div className="chart-title">
-                          {message.evidence.governed_metric} by{" "}
-                          {message.evidence.dimensions[0]}
-                        </div>
-
-                        <ChartRenderer
-                          data={message.data.slice(0, 10)}
-                          metric={
-                            message.evidence.governed_metric
-                          }
-                          dimension={
-                            message.evidence.dimensions[0]
-                          }
-                        />
-
-                        {message.data.length > 10 && (
-                          <div className="chart-note">
-                            Showing top 10 of{" "}
-                            {message.data.length} results
-                          </div>
-                        )}
-
-                      </div>
-                    )}
-
-                </div>
-              </div>
-            ))}
-
-            {/* Loading state */}
-=======
 
             ) : (
 
@@ -259,6 +182,7 @@ function AskAI() {
 
                   </div>
 
+
                   <div className="message-content">
 
                     <strong>
@@ -267,7 +191,10 @@ function AskAI() {
                         : "MetricMind AI"}
                     </strong>
 
-                    <p>{message.text}</p>
+
+                    <p>
+                      {message.text}
+                    </p>
 
 
                     {/* ================= AI INTERPRETATION ================= */}
@@ -288,7 +215,9 @@ function AskAI() {
                             <div className="interpretation-grid">
 
                               <div>
-                                <span>Metric</span>
+                                <span>
+                                  Metric
+                                </span>
 
                                 <strong>
                                   {message.result.evidence
@@ -298,7 +227,9 @@ function AskAI() {
 
 
                               <div>
-                                <span>Dimension</span>
+                                <span>
+                                  Dimension
+                                </span>
 
                                 <strong>
                                   {message.result.evidence
@@ -308,7 +239,9 @@ function AskAI() {
 
 
                               <div>
-                                <span>Rows</span>
+                                <span>
+                                  Rows
+                                </span>
 
                                 <strong>
                                   {message.result.evidence
@@ -342,29 +275,24 @@ function AskAI() {
 
             {/* ================= LOADING STATE ================= */}
 
->>>>>>> Stashed changes
             {loading && (
 
               <div className="message ai">
 
                 <div className="message-icon">
-                  <Bot size={17} />
+                  <Bot size={14} />
                 </div>
 
                 <div className="message-content">
 
-                  <strong>MetricMind AI</strong>
+                  <strong>
+                    MetricMind AI
+                  </strong>
 
-<<<<<<< Updated upstream
-                  <p className="thinking-text">
-                    Thinking...
-                  </p>
-=======
                   <p>
                     Analyzing your business question...
                   </p>
 
->>>>>>> Stashed changes
                 </div>
 
               </div>
@@ -373,23 +301,18 @@ function AskAI() {
 
           </div>
 
-<<<<<<< Updated upstream
-          {/* Input */}
-=======
 
-          {/* ================= INPUT ================= */}
+          {/* ================= CHAT INPUT ================= */}
 
->>>>>>> Stashed changes
           <div className="chat-input-area">
 
             <input
-              type="text"
               value={question}
-              onChange={(event) =>
-                setQuestion(event.target.value)
+              onChange={(e) =>
+                setQuestion(e.target.value)
               }
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
                   askQuestion();
                 }
               }}
@@ -397,21 +320,16 @@ function AskAI() {
               disabled={loading}
             />
 
+
             <button
-              type="button"
               onClick={() => askQuestion()}
-<<<<<<< Updated upstream
-              disabled={!question.trim() || loading}
-            >
-              Ask
-              <ArrowRight size={17} />
-=======
-              disabled={loading || !question.trim()}
+              disabled={
+                loading || !question.trim()
+              }
             >
               {loading ? "Thinking..." : "Ask"}
 
               <ArrowRight size={14} />
->>>>>>> Stashed changes
             </button>
 
           </div>
@@ -419,12 +337,6 @@ function AskAI() {
         </div>
 
 
-<<<<<<< Updated upstream
-        {/* ================= SUGGESTIONS CARD ================= */}
-        <div className="suggestions-card">
-
-          <h3>QUICK QUESTIONS</h3>
-=======
         {/* ================= QUICK QUESTIONS ================= */}
 
         <div className="suggestions-card">
@@ -433,10 +345,11 @@ function AskAI() {
             QUICK QUESTIONS
           </span>
 
+
           <h3>
             Start exploring your data
           </h3>
->>>>>>> Stashed changes
+
 
           <p>
             Try one of these questions to begin.
@@ -445,23 +358,15 @@ function AskAI() {
 
           <div className="suggestion-list">
 
-<<<<<<< Updated upstream
-            {suggestions.map((suggestion, index) => (
-=======
             {suggestions.map((suggestion) => (
 
->>>>>>> Stashed changes
               <button
-                key={index}
-                type="button"
-                onClick={() => askQuestion(suggestion)}
+                key={suggestion}
+                onClick={() =>
+                  askQuestion(suggestion)
+                }
                 disabled={loading}
               >
-<<<<<<< Updated upstream
-                <span>{suggestion}</span>
-
-                <ArrowRight size={15} />
-=======
 
                 <Sparkles size={14} />
 
@@ -469,7 +374,6 @@ function AskAI() {
 
                 <ArrowRight size={13} />
 
->>>>>>> Stashed changes
               </button>
 
             ))}
@@ -479,7 +383,6 @@ function AskAI() {
         </div>
 
       </div>
-
     </div>
   );
 }
