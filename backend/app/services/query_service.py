@@ -1135,12 +1135,18 @@ def summarize_result(
             "for this question."
         )
 
+    # Time-series / overall metric query.
+    # When there are multiple rows but no normal dimensions,
+    # summarize the number of time periods instead of
+    # reporting only the first row.
     if not dimensions:
-        value = (
-            rows[0].get(measure)
-            if rows
-            else None
-        )
+        if row_count > 1:
+            return (
+                f"Returned {row_count} time periods "
+                f"of {measure} data."
+            )
+
+        value = rows[0].get(measure)
 
         return f"{measure} = {value}."
 
@@ -1168,8 +1174,6 @@ def summarize_result(
         f"with {measure} = "
         f"{rows[0].get(measure)}."
     )
-
-
 class QueryService:
     """Compiles and executes governed queries against the warehouse."""
 
