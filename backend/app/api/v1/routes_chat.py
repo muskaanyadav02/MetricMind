@@ -11,8 +11,9 @@
 Two behaviours are worth calling out:
 
 * When the agent cannot identify a governed metric, or flags the question as
-  ambiguous, the endpoint returns ``status: "ambiguous" | "unsupported"`` with an
-  explanation. It never falls back to generating SQL from the free-form question.
+  ambiguous, the endpoint returns ``status: "ambiguous" | "unsupported"`` with
+  an explanation. It never falls back to generating SQL from the free-form
+  question.
 * Answer prose is produced by :func:`~app.services.query_service.summarize_result`,
   which is template-based. The current agent has no language model, so the
   response records ``evidence.answer_generation = "deterministic"`` instead of
@@ -37,14 +38,21 @@ from app.schemas.chat import (
 from app.schemas.common import ErrorResponse
 from app.schemas.semantic import GovernedQuery
 from app.schemas.validation import ValidationReport
-from app.services.agent_service import AgentInterpretation, AgentService, get_agent_service
+from app.services.agent_service import (
+    AgentInterpretation,
+    AgentService,
+    get_agent_service,
+)
 from app.services.query_service import (
     QueryService,
     get_query_service,
     summarize_result,
     translate_agent_output,
 )
-from app.services.validation_service import ValidationService, get_validation_service
+from app.services.validation_service import (
+    ValidationService,
+    get_validation_service,
+)
 
 logger = get_logger(__name__)
 
@@ -70,7 +78,11 @@ def _build_evidence(
         metric_formula=metric_formula,
         interpreted_dimension=interpretation.dimension,
         dimensions=list(dimensions or []),
-        filters=list(governed_query.filters) if governed_query else [],
+        filters=list(
+            governed_query.filters
+        )
+        if governed_query
+        else [],
         governed_query=governed_query,
         source_model=source_model,
         row_count=row_count,
@@ -81,8 +93,11 @@ def _build_evidence(
     )
 
 
-def _skipped_validation(reason: str) -> ValidationReport:
+def _skipped_validation(
+    reason: str,
+) -> ValidationReport:
     """A report for the paths where no query was executed."""
+
     return ValidationReport(
         is_valid=False,
         status="SKIPPED",
@@ -102,36 +117,68 @@ def _skipped_validation(reason: str) -> ValidationReport:
         "'ambiguous' rather than a guessed query."
     ),
     responses={
-        200: {"description": "Answered, ambiguous, or unsupported — all three are valid outcomes."},
+        200: {
+            "description": (
+                "Answered, ambiguous, or unsupported — "
+                "all three are valid outcomes."
+            )
+        },
         422: {
             "model": ErrorResponse,
-            "description": "Malformed request body (request_validation_error), or the governed payload failed schema validation (validation_failed).",
+            "description": (
+                "Malformed request body (request_validation_error), "
+                "or the governed payload failed schema validation "
+                "(validation_failed)."
+            ),
         },
         502: {
             "model": ErrorResponse,
-            "description": "The warehouse returned an error (warehouse_error), or the agent could not interpret the question (agent_error).",
+            "description": (
+                "The warehouse returned an error (warehouse_error), "
+                "or the agent could not interpret the question "
+                "(agent_error)."
+            ),
         },
         503: {
             "model": ErrorResponse,
-            "description": "The warehouse is not configured (configuration_error), or the agent module could not be loaded (agent_unavailable).",
+            "description": (
+                "The warehouse is not configured (configuration_error), "
+                "or the agent module could not be loaded "
+                "(agent_unavailable)."
+            ),
         },
         504: {
             "model": ErrorResponse,
-            "description": "The warehouse query exceeded WAREHOUSE_TIMEOUT_SECONDS (warehouse_timeout).",
+            "description": (
+                "The warehouse query exceeded "
+                "WAREHOUSE_TIMEOUT_SECONDS "
+                "(warehouse_timeout)."
+            ),
         },
     },
 )
 def chat_query(
     request: ChatQueryRequest,
     agent: AgentService = Depends(get_agent_service),
-    query_service: QueryService = Depends(get_query_service),
-    validation: ValidationService = Depends(get_validation_service),
+    query_service: QueryService = Depends(
+        get_query_service
+    ),
+    validation: ValidationService = Depends(
+        get_validation_service
+    ),
     settings: Settings = Depends(get_settings),
 ) -> ChatQueryResponse:
-    interpretation = agent.interpret(request.question)
+
+    interpretation = agent.interpret(
+        request.question
+    )
+
     registry = query_service.registry
 
-    requested_limit = request.limit or settings.default_result_rows
+    requested_limit = (
+        request.limit
+        or settings.default_result_rows
+    )
 
     outcome = translate_agent_output(
         interpretation,
@@ -141,16 +188,24 @@ def chat_query(
     )
 
     # -- Not executable: report why, with full evidence of what was understood.
-    if outcome.status != "ok" or outcome.governed_query is None:
+    if (
+        outcome.status != "ok"
+        or outcome.governed_query is None
+    ):
         return ChatQueryResponse(
-            status="ambiguous" if outcome.status == "ambiguous" else "unsupported",
+            status=(
+                "ambiguous"
+                if outcome.status == "ambiguous"
+                else "unsupported"
+            ),
             answer=None,
             message=outcome.message,
             ambiguity=outcome.ambiguity,
             evidence=_build_evidence(
                 interpretation,
                 validation=_skipped_validation(
-                    "No governed query was executed, so no data validation was performed."
+                    "No governed query was executed, "
+                    "so no data validation was performed."
                 ),
                 translation_notes=outcome.notes,
             ),
@@ -158,36 +213,78 @@ def chat_query(
         )
 
     governed_query = outcome.governed_query
-    metric_name = governed_query.measures[0] if governed_query.measures else None
-    metric_definition = registry.find_metric(metric_name)
+
+    metric_name = (
+        governed_query.measures[0]
+        if governed_query.measures
+        else None
+    )
+
+    metric_definition = registry.find_metric(
+        metric_name
+    )
 
     # -- Pre-execution validation of the governed payload.
-    schema_report = validation.validate_governed_query(governed_query)
+    schema_report = (
+        validation.validate_governed_query(
+            governed_query
+        )
+    )
+
     if not schema_report.is_valid:
         raise ValidationFailedError(
-            "The governed query failed schema validation and was not executed.",
+            "The governed query failed schema validation "
+            "and was not executed.",
             details=[
-                {"field": "measures", "message": schema_report.errors[0]}
+                {
+                    "field": "measures",
+                    "message": schema_report.errors[0],
+                }
                 if schema_report.errors
-                else {"field": "measures", "message": "Governed payload is invalid."}
+                else {
+                    "field": "measures",
+                    "message": (
+                        "Governed payload is invalid."
+                    ),
+                }
             ],
         )
 
     # -- Execution. Raises ConfigurationError (503) when unconfigured, and
     #    WarehouseTimeoutError (504) / WarehouseError (502) on failure.
-    execution = query_service.execute(governed_query)
+    execution = query_service.execute(
+        governed_query
+    )
 
     # -- Post-execution validation of the returned rows.
     data_report = validation.validate_rows(
-        execution.result.rows, columns=execution.result.columns
+        execution.result.rows,
+        columns=execution.result.columns,
     )
-    combined_report = validation.combine(schema_report, data_report)
 
-    rows: List[Dict[str, Any]] = execution.result.rows
-    answer = summarize_result(metric_name, rows, governed_query.dimensions)
+    combined_report = validation.combine(
+        schema_report,
+        data_report,
+    )
+
+    rows: List[Dict[str, Any]] = (
+        execution.result.rows
+    )
+
+    # Pass the operation so summarize_result can produce
+    # user-friendly wording for highest/lowest queries.
+    answer = summarize_result(
+        metric_name,
+        rows,
+        governed_query.dimensions,
+        interpretation.operation,
+    )
 
     if combined_report.status == "ERROR":
-        logger.warning("Validation reported an error for question: %s", interpretation.question)
+        logger.warning(
+            "Validation reported an error for question: %s",
+            interpretation.question,
+        )
 
     return ChatQueryResponse(
         status="answered",
@@ -197,10 +294,17 @@ def chat_query(
         evidence=_build_evidence(
             interpretation,
             governed_metric=metric_name,
-            metric_formula=metric_definition.formula if metric_definition else None,
+            metric_formula=(
+                metric_definition.formula
+                if metric_definition
+                else None
+            ),
             dimensions=governed_query.dimensions,
             governed_query=governed_query,
-            source_model=execution.result.source_model or execution.plan.source_model,
+            source_model=(
+                execution.result.source_model
+                or execution.plan.source_model
+            ),
             row_count=execution.result.row_count,
             validation=combined_report,
             translation_notes=outcome.notes,

@@ -16,6 +16,7 @@ The same governed query can also be rendered into a Cube.dev REST payload.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
 from fastapi import Depends
@@ -1052,6 +1053,8 @@ def compile_governed_query(
         source_model=fact_table,
         columns=columns,
     )
+
+
 def build_cube_payload(
     governed_query: GovernedQuery,
 ) -> Dict[str, Any]:
@@ -1119,6 +1122,7 @@ def summarize_result(
     metric_name: Optional[str],
     rows: Sequence[Dict[str, Any]],
     dimensions: Sequence[str],
+    operation: Optional[str] = None,
 ) -> str:
     """Build answer text deterministically from returned rows."""
 
@@ -1128,6 +1132,17 @@ def summarize_result(
         metric_name
         or "value"
     )
+
+    def format_value(value: Any) -> str:
+        """Format numeric values cleanly for user-facing answers."""
+
+        if isinstance(value, (float, Decimal)):
+            return f"{value:,.2f}"
+
+        if isinstance(value, int):
+            return f"{value:,}"
+
+        return str(value)
 
     if row_count == 0:
         return (
@@ -1148,21 +1163,40 @@ def summarize_result(
 
         value = rows[0].get(measure)
 
-        return f"{measure} = {value}."
+        return (
+            f"{measure} = "
+            f"{format_value(value)}."
+        )
 
+    # Single grouped result.
     if row_count == 1:
         row = rows[0]
 
-        labelled = ", ".join(
-            f"{dimension} = "
-            f"{row.get(dimension)}"
-            for dimension in dimensions
-        )
+        dimension = dimensions[0]
+        dimension_value = row.get(dimension)
+        value = row.get(measure)
+
+        formatted_value = format_value(value)
+
+        if operation == OPERATION_HIGHEST:
+            return (
+                f"{dimension_value} has the highest "
+                f"{measure.lower()} at "
+                f"{formatted_value}."
+            )
+
+        if operation == OPERATION_LOWEST:
+            return (
+                f"{dimension_value} has the lowest "
+                f"{measure.lower()} at "
+                f"{formatted_value}."
+            )
 
         return (
             f"{measure} for "
-            f"{labelled} = "
-            f"{row.get(measure)}."
+            f"{dimension} = "
+            f"{dimension_value} "
+            f"is {formatted_value}."
         )
 
     return (
@@ -1172,8 +1206,10 @@ def summarize_result(
         f"The first row is "
         f"{rows[0].get(dimensions[0])} "
         f"with {measure} = "
-        f"{rows[0].get(measure)}."
+        f"{format_value(rows[0].get(measure))}."
     )
+
+
 class QueryService:
     """Compiles and executes governed queries against the warehouse."""
 

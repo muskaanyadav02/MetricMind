@@ -3,6 +3,10 @@ import re
 from schema import METRICS, DIMENSIONS, TIME_GRANULARITIES
 
 
+# ============================================================
+# Metric aliases
+# ============================================================
+
 METRIC_ALIASES = {
     "total sales": "Sales",
     "average order value": "Average Order Value",
@@ -27,6 +31,10 @@ METRIC_ALIASES = {
 }
 
 
+# ============================================================
+# Identify metric
+# ============================================================
+
 def identify_metric(question):
     question_lower = question.lower()
 
@@ -42,6 +50,10 @@ def identify_metric(question):
 
     return None
 
+
+# ============================================================
+# Identify dimension
+# ============================================================
 
 def identify_dimension(question):
     question_lower = question.lower()
@@ -94,6 +106,10 @@ def identify_dimension(question):
 
     return None
 
+
+# ============================================================
+# Identify time granularity
+# ============================================================
 
 def identify_time_granularity(question):
     """
@@ -153,6 +169,10 @@ def identify_time_granularity(question):
     return None
 
 
+# ============================================================
+# Identify year
+# ============================================================
+
 def identify_year(question):
     match = re.search(
         r"\b(20\d{2})\b",
@@ -164,6 +184,10 @@ def identify_year(question):
 
     return None
 
+
+# ============================================================
+# Identify market
+# ============================================================
 
 def identify_market(question):
     question_lower = question.lower()
@@ -182,9 +206,66 @@ def identify_market(question):
     return None
 
 
+# ============================================================
+# Normalize operation
+# ============================================================
+
+def normalize_operation(operation):
+    """
+    Normalize operation names coming from the LLM or
+    natural-language interpretation.
+
+    This is important because the semantic layer supports
+    governed operations such as "highest" and "lowest",
+    while the LLM may sometimes return variants such as
+    "high" or "low".
+    """
+
+    if not operation:
+        return None
+
+    operation = str(operation).strip().lower()
+
+    operation_aliases = {
+        # Highest / maximum
+        "high": "highest",
+        "highest": "highest",
+        "maximum": "highest",
+        "max": "highest",
+        "most": "highest",
+        "top": "highest",
+        "best": "highest",
+        "largest": "highest",
+
+        # Lowest / minimum
+        "low": "lowest",
+        "lowest": "lowest",
+        "minimum": "lowest",
+        "min": "lowest",
+        "least": "lowest",
+        "bottom": "lowest",
+        "smallest": "lowest",
+
+        # Aggregation
+        "total": "total",
+        "sum": "total",
+
+        # Comparison
+        "compare": "compare",
+        "comparison": "compare",
+    }
+
+    return operation_aliases.get(operation, operation)
+
+
+# ============================================================
+# Identify operation
+# ============================================================
+
 def identify_operation(question):
     question_lower = question.lower()
 
+    # Highest / maximum
     if any(
         word in question_lower
         for word in [
@@ -193,10 +274,13 @@ def identify_operation(question):
             "most",
             "top",
             "best",
+            "largest",
+            "high",
         ]
     ):
         return "highest"
 
+    # Lowest / minimum
     if any(
         word in question_lower
         for word in [
@@ -205,10 +289,12 @@ def identify_operation(question):
             "least",
             "bottom",
             "low",
+            "smallest",
         ]
     ):
         return "lowest"
 
+    # Compare
     if any(
         word in question_lower
         for word in [
@@ -218,6 +304,7 @@ def identify_operation(question):
     ):
         return "compare"
 
+    # Total
     if any(
         word in question_lower
         for word in [
@@ -229,6 +316,10 @@ def identify_operation(question):
 
     return None
 
+
+# ============================================================
+# Identify time operation
+# ============================================================
 
 def identify_time_operation(question):
     """
@@ -250,10 +341,14 @@ def identify_time_operation(question):
 
     # Explicit ranking/comparison operations remain unchanged.
     if operation is not None:
-        return operation
+        return normalize_operation(operation)
 
     return "total"
 
+
+# ============================================================
+# Root-cause intent
+# ============================================================
 
 def detect_root_cause_intent(question):
     """
@@ -340,6 +435,10 @@ def detect_root_cause_intent(question):
     return False
 
 
+# ============================================================
+# Root-cause plan
+# ============================================================
+
 def build_root_cause_plan(question):
     """
     Build a deterministic secondary-analysis plan.
@@ -360,6 +459,10 @@ def build_root_cause_plan(question):
         ),
     }
 
+
+# ============================================================
+# Ambiguity detection
+# ============================================================
 
 def detect_ambiguity(question):
     question_lower = question.lower()
@@ -404,6 +507,10 @@ def detect_ambiguity(question):
     }
 
 
+# ============================================================
+# Build query
+# ============================================================
+
 def build_query(question):
     """
     Convert a natural-language business question into
@@ -412,6 +519,7 @@ def build_query(question):
     No raw SQL is generated here.
 
     The query can contain either:
+
     - a normal business dimension, such as Country or Category
     - a time granularity, such as Month or Quarter
     - a root-cause analysis plan for multi-step questions
@@ -440,6 +548,10 @@ def build_query(question):
         question
     )
 
+    # Always normalize the operation before returning
+    # the structured query.
+    operation = normalize_operation(operation)
+
     root_cause = detect_root_cause_intent(
         question
     )
@@ -447,6 +559,7 @@ def build_query(question):
     root_cause_plan = None
 
     if root_cause:
+
         root_cause_plan = build_root_cause_plan(
             question
         )

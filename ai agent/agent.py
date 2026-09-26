@@ -21,6 +21,7 @@ from query_builder import (
     build_query,
     detect_root_cause_intent,
     build_root_cause_plan,
+    normalize_operation,
 )
 from validator import validate_query
 from semantic_client import execute_query
@@ -70,21 +71,25 @@ def _build_llm_query(question: str) -> Dict[str, Any]:
 
     deterministic_query = build_query(question)
 
-    # Start with the LLM interpretation.
     structured_query = {
-        "question": question,
-        "metric": parsed_response.get("metric"),
-        "dimension": parsed_response.get("dimension"),
-        "filters": parsed_response.get("filters", {}),
-        "operation": parsed_response.get("operation"),
-        "time_granularity": None,
-        "root_cause": False,
-        "root_cause_plan": None,
-        "ambiguity": deterministic_query.get(
-            "ambiguity",
-            {},
-        ),
-    }
+    "question": question,
+    "metric": parsed_response.get("metric"),
+    "dimension": parsed_response.get("dimension"),
+    "filters": parsed_response.get("filters", {}),
+    "operation": (
+        deterministic_query.get("operation")
+        or normalize_operation(
+            parsed_response.get("operation")
+        )
+    ),
+    "time_granularity": None,
+    "root_cause": False,
+    "root_cause_plan": None,
+    "ambiguity": deterministic_query.get(
+        "ambiguity",
+        {},
+    ),
+}
 
     # ---------------------------------------------------------------
     # 4. Preserve deterministic filters
