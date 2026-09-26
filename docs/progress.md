@@ -119,3 +119,110 @@ CSV
 → AI Agent
 
 The semantic layer provides governed metrics and dimensions so that downstream AI components query trusted business definitions instead of generating uncontrolled raw SQL.
+
+## Semantic Layer Validation — Completed
+
+### Cube.dev + Snowflake Validation
+
+- Connected Cube.dev to Snowflake `METRICMIND.MART.FACT_SALES`.
+- Validated governed measures:
+  - Revenue = `SUM(SALES)`
+  - Profit = `SUM(PROFIT)`
+  - Profit Margin = `SUM(PROFIT) / SUM(SALES) * 100`
+  - Orders = `COUNT(DISTINCT ORDER_ID)`
+  - Customers = `COUNT(DISTINCT CUSTOMER_ID)`
+- Validated Cube Playground queries against the Snowflake baseline.
+- Validated Market-level analysis using `FactSales.market`.
+- Validated EU filtering through the Cube semantic layer.
+- Validated quarterly EU analysis using `FactSales.orderDate`.
+- Confirmed quarterly Revenue, Profit and Profit Margin results for EU from 2011 Q1 through 2014 Q4.
+- Validated Cube REST API endpoint:
+  - `POST /cubejs-api/v1/load`
+- Confirmed Cube queries execute against Snowflake successfully.
+
+### Current Semantic Layer Status
+
+**Status: Completed and validated**
+
+The semantic layer can now support governed analytical queries using:
+- Geography/Market filters
+- Time-based quarterly analysis
+- Revenue
+- Profit
+- Profit Margin
+- Orders
+- Customers
+- Shipping Cost
+
+### Next
+
+Proceed to secondary-factor analysis for the MetricMind use case, using dimensions/measures available in the dataset such as category, sub-category, discount, shipping cost, segment and geography.
+
+
+## Semantic Layer Validation
+
+### Cube.dev + Snowflake Validation
+- Cube.dev successfully connected to Snowflake.
+- Governed measures validated:
+  - Revenue = SUM(Sales)
+  - Profit = SUM(Profit)
+  - Profit Margin = SUM(Profit) / SUM(Sales) * 100
+  - Orders = COUNT(DISTINCT Order ID)
+  - Customers = COUNT(DISTINCT Customer ID)
+  - Quantity Sold = SUM(Quantity)
+  - Shipping Cost = SUM(Shipping Cost)
+  - Average Order Value = Revenue / Orders
+
+### API Validation
+- REST endpoint validated:
+  `POST /cubejs-api/v1/load`
+- European market filter validated using:
+  `FactSales.market = EU`
+- European sales and profit by category successfully returned.
+- European profit margin by quarter successfully returned for all 16 quarters from 2011 Q1 to 2014 Q4.
+
+### Governance / Repeatability
+- The same semantic API query was executed repeatedly.
+- Results remained consistent across executions.
+- This confirms that business metrics are being calculated through the governed Cube semantic layer rather than manually generated SQL logic.
+
+### Current Status
+- Snowflake raw layer: COMPLETE
+- dbt staging/intermediate/mart models: COMPLETE
+- dbt tests: PASS
+- Cube semantic model: COMPLETE
+- Cube → Snowflake connection: VALIDATED
+- Cube Playground validation: COMPLETE
+- Cube REST API validation: COMPLETE
+- EU filter validation: COMPLETE
+- Quarterly margin analysis: COMPLETE
+- Repeatability validation: COMPLETE
+
+## Data & Semantic Engineering Milestone — Final
+
+### Completed
+- Snowflake RAW layer configured and validated.
+- Global Superstore dataset loaded with 51,290 records.
+- dbt staging, intermediate, and MART layers implemented.
+- dbt data quality tests completed successfully.
+- Fact and dimension models validated.
+- Cube.dev semantic model connected to Snowflake MART layer.
+- Governed business metrics implemented and validated.
+- Cube Playground queries validated.
+- Cube REST API validated through `/cubejs-api/v1/load`.
+- European market analysis validated using `MARKET = EU`.
+- Quarterly European profit-margin analysis validated.
+- Category and sub-category analysis validated.
+- Semantic API repeatability validated.
+- Documentation updated for Backend and AI Agent integration.
+
+### Integration Contract
+Backend and AI Agent services should query the governed Cube semantic API rather than generating unrestricted SQL directly against the warehouse.
+
+Primary endpoint:
+`POST /cubejs-api/v1/load`
+
+European market mapping:
+`FactSales.market = EU`
+
+This completes the Data & Semantic Engineering milestone for MetricMind.
