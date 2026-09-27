@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 MetricMind AI Agent
 
@@ -12,8 +13,8 @@ Responsibilities:
 8. Handle no-data situations safely.
 9. Perform secondary root-cause analysis when required.
 """
+import time
 
-from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
@@ -439,19 +440,59 @@ def _execute_root_cause_analysis(
 # MAIN QUESTION PROCESSING
 # ---------------------------------------------------------------------------
 
+def _can_use_fast_path(structured_query: Dict[str, Any]) -> bool:
+    """
+    Decide whether the deterministic query builder understood enough of the
+    question to safely skip the LLM.
+
+    The deterministic builder is intentionally conservative here.  If there
+    is no metric, or the question is ambiguous, Llama remains the fallback.
+    Validation is performed before execution, so an unsupported deterministic
+    interpretation also falls back to the LLM.
+    """
+
+    if not isinstance(structured_query, dict):
+        return False
+
+    ambiguity = structured_query.get("ambiguity", {})
+
+    if isinstance(ambiguity, dict) and ambiguity.get("ambiguous"):
+        return False
+
+    if structured_query.get("metric") is None:
+        return False
+
+    # A recognized metric is enough for simple total questions such as
+    # "Show me sales".  A dimension/time granularity/operation provides
+    # additional evidence that the deterministic parser understood the query.
+    if (
+        structured_query.get("dimension") is not None
+        or structured_query.get("time_granularity") is not None
+        or structured_query.get("operation") is not None
+        or structured_query.get("root_cause")
+    ):
+        return True
+
+    return False
+
+
 def process_question(
     question: str,
 ) -> Dict[str, Any]:
     """
-    Complete AI-agent workflow:
+    Complete AI-agent workflow with a deterministic fast path:
 
         User question
               ↓
+        Deterministic query builder
+              ↓
+        Confident + valid? ── YES ──→ Validation → Cube → Snowflake
+              │
+              NO
+              ↓
         Llama 3.1
               ↓
-        LLM parser
-              ↓
-        Deterministic normalization
+        LLM parser / normalization
               ↓
         Validation
               ↓
@@ -460,6 +501,10 @@ def process_question(
         Snowflake
               ↓
         Optional root-cause analysis
+
+    Common, clearly understood questions therefore avoid the expensive LLM
+    call.  Llama is retained as a fallback for questions the deterministic
+    parser cannot safely interpret.
     """
 
     # ---------------------------------------------------------------
@@ -492,29 +537,75 @@ def process_question(
         }
 
     # ---------------------------------------------------------------
-    # 2. Interpret question with Llama
+    # 2. Try deterministic fast path first
     # ---------------------------------------------------------------
 
     try:
+        deterministic_query = build_query(question)
+    except Exception as exc:
+        deterministic_query = None
+        deterministic_error = exc
+    else:
+        deterministic_error = None
 
-        structured_query = _build_llm_query(
-            question
+    structured_query = None
+    validation = None
+    used_fast_path = False
+
+    if deterministic_query is not None:
+        # Ambiguity is already a governed outcome.  Do not ask the LLM to
+        # guess a metric for questions such as "Which is the best category?".
+        deterministic_ambiguity = deterministic_query.get(
+            "ambiguity",
+            {},
         )
 
-    except Exception as exc:
+        if (
+            isinstance(deterministic_ambiguity, dict)
+            and deterministic_ambiguity.get("ambiguous")
+        ):
+            structured_query = deterministic_query
+            used_fast_path = True
 
-        return {
-            "status": "error",
-            "answer": "",
-            "message": (
-                "The AI agent could not "
-                f"interpret the question: {exc}"
-            ),
-            "data": [],
-        }
+        elif _can_use_fast_path(deterministic_query):
+            # Validate before execution.  If the deterministic interpretation
+            # is not accepted by the governed schema, fall back to Llama.
+            candidate_validation = validate_query(
+                deterministic_query
+            )
+
+            if candidate_validation.get("valid"):
+                structured_query = deterministic_query
+                validation = candidate_validation
+                used_fast_path = True
 
     # ---------------------------------------------------------------
-    # 3. Check ambiguity
+    # 3. LLM fallback
+    # ---------------------------------------------------------------
+
+    if structured_query is None:
+        try:
+            structured_query = _build_llm_query(question)
+        except Exception as exc:
+            # Preserve the deterministic parser error as context when the
+            # fallback also fails, while keeping the user-facing message clear.
+            if deterministic_error is not None:
+                detail = f"{exc} (deterministic parser: {deterministic_error})"
+            else:
+                detail = str(exc)
+
+            return {
+                "status": "error",
+                "answer": "",
+                "message": (
+                    "The AI agent could not "
+                    f"interpret the question: {detail}"
+                ),
+                "data": [],
+            }
+
+    # ---------------------------------------------------------------
+    # 4. Check ambiguity
     # ---------------------------------------------------------------
 
     ambiguity = structured_query.get(
@@ -542,12 +633,13 @@ def process_question(
         }
 
     # ---------------------------------------------------------------
-    # 4. Validate governed query
+    # 5. Validate governed query
     # ---------------------------------------------------------------
 
-    validation = validate_query(
-        structured_query
-    )
+    if validation is None:
+        validation = validate_query(
+            structured_query
+        )
 
     if not validation.get(
         "valid"
@@ -566,7 +658,7 @@ def process_question(
         }
 
     # ---------------------------------------------------------------
-    # 5. Execute primary semantic query
+    # 6. Execute primary semantic query
     # ---------------------------------------------------------------
 
     try:
@@ -589,7 +681,7 @@ def process_question(
         }
 
     # ---------------------------------------------------------------
-    # 6. Extract rows
+    # 7. Extract rows
     # ---------------------------------------------------------------
 
     rows = []
@@ -598,6 +690,7 @@ def process_question(
         result,
         dict,
     ):
+
         rows = result.get(
             "data",
             [],
@@ -607,13 +700,14 @@ def process_question(
         result,
         list,
     ):
+
         rows = result
 
     if rows is None:
         rows = []
 
     # ---------------------------------------------------------------
-    # 7. Handle no data
+    # 8. Handle no data
     # ---------------------------------------------------------------
 
     if not rows:
@@ -625,11 +719,12 @@ def process_question(
 
         response["validation"] = validation
         response["semantic_result"] = result
+        response["fast_path"] = used_fast_path
 
         return response
 
     # ---------------------------------------------------------------
-    # 8. Root-cause analysis
+    # 9. Root-cause analysis
     # ---------------------------------------------------------------
 
     root_cause_analysis = None
@@ -645,7 +740,7 @@ def process_question(
         )
 
     # ---------------------------------------------------------------
-    # 9. Build deterministic answer
+    # 10. Build deterministic answer
     # ---------------------------------------------------------------
 
     metric = structured_query.get(
@@ -716,7 +811,7 @@ def process_question(
             )
 
     # ---------------------------------------------------------------
-    # 10. Return final response
+    # 11. Return final response
     # ---------------------------------------------------------------
 
     return {
@@ -728,6 +823,7 @@ def process_question(
         "validation": validation,
         "semantic_result": result,
         "root_cause_analysis": root_cause_analysis,
+        "fast_path": used_fast_path,
         "data": rows,
     }
 
@@ -742,8 +838,12 @@ def interpret(
     """
     Public interpretation entry point used by the backend adapter.
 
-    Unlike process_question(), this function only interprets the
-    question and does not execute Cube.
+    Uses the deterministic query builder first. Llama 3.1 is only
+    used when the deterministic parser cannot safely interpret the
+    question.
+
+    This function ONLY interprets the question. It does not execute
+    Cube or the warehouse query.
     """
 
     if not isinstance(
@@ -755,11 +855,67 @@ def interpret(
             "A non-empty question is required."
         )
 
+    question = question.strip()
+
+    # ---------------------------------------------------------------
+    # 1. Try deterministic interpretation first
+    # ---------------------------------------------------------------
+
+    try:
+
+        deterministic_query = build_query(
+            question
+        )
+
+    except Exception:
+
+        deterministic_query = None
+
+    # ---------------------------------------------------------------
+    # 2. If deterministic interpretation is safe, return it.
+    # ---------------------------------------------------------------
+
+    if deterministic_query is not None:
+
+        ambiguity = deterministic_query.get(
+            "ambiguity",
+            {},
+        )
+
+        # Ambiguous questions should remain ambiguous.
+        # Do not make Llama guess.
+        if (
+            isinstance(
+                ambiguity,
+                dict,
+            )
+            and ambiguity.get("ambiguous")
+        ):
+
+            return deterministic_query
+
+        # Check whether the deterministic parser understood
+        # enough of the question to safely skip Llama.
+        if _can_use_fast_path(
+            deterministic_query
+        ):
+
+            validation = validate_query(
+                deterministic_query
+            )
+
+            if validation.get("valid"):
+
+                return deterministic_query
+
+    # ---------------------------------------------------------------
+    # 3. Deterministic parser could not safely interpret it.
+    #    Use Llama as the fallback.
+    # ---------------------------------------------------------------
+
     return _build_llm_query(
-        question.strip()
+        question
     )
-
-
 # ---------------------------------------------------------------------------
 # MANUAL TESTING
 # ---------------------------------------------------------------------------
