@@ -128,20 +128,41 @@ def chat_query(
     validation: ValidationService = Depends(get_validation_service),
     settings: Settings = Depends(get_settings),
 ) -> ChatQueryResponse:
-    interpretation = agent.interpret(request.question)
-    registry = query_service.registry
+    import time
 
+    total_start = time.perf_counter()
+
+    # 1. Agent interpretation
+    stage_start = time.perf_counter()
+    interpretation = agent.interpret(request.question)
+    logger.info(
+        "CHAT TIMING | agent.interpret: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
+
+    registry = query_service.registry
     requested_limit = request.limit or settings.default_result_rows
 
+    # 2. Translate agent output
+    stage_start = time.perf_counter()
     outcome = translate_agent_output(
         interpretation,
         registry,
         default_limit=requested_limit,
         max_limit=settings.max_result_rows,
     )
+    logger.info(
+        "CHAT TIMING | translate_agent_output: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
 
     # -- Not executable: report why, with full evidence of what was understood.
     if outcome.status != "ok" or outcome.governed_query is None:
+        logger.info(
+            "CHAT TIMING | total: %.3f sec",
+            time.perf_counter() - total_start,
+        )
+
         return ChatQueryResponse(
             status="ambiguous" if outcome.status == "ambiguous" else "unsupported",
             answer=None,
@@ -159,10 +180,23 @@ def chat_query(
 
     governed_query = outcome.governed_query
     metric_name = governed_query.measures[0] if governed_query.measures else None
-    metric_definition = registry.find_metric(metric_name)
 
-    # -- Pre-execution validation of the governed payload.
+    # 3. Registry metric lookup
+    stage_start = time.perf_counter()
+    metric_definition = registry.find_metric(metric_name)
+    logger.info(
+        "CHAT TIMING | registry.find_metric: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
+
+    # 4. Pre-execution validation
+    stage_start = time.perf_counter()
     schema_report = validation.validate_governed_query(governed_query)
+    logger.info(
+        "CHAT TIMING | validate_governed_query: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
+
     if not schema_report.is_valid:
         raise ValidationFailedError(
             "The governed query failed schema validation and was not executed.",
@@ -173,21 +207,52 @@ def chat_query(
             ],
         )
 
-    # -- Execution. Raises ConfigurationError (503) when unconfigured, and
-    #    WarehouseTimeoutError (504) / WarehouseError (502) on failure.
+    # 5. Warehouse execution
+    stage_start = time.perf_counter()
     execution = query_service.execute(governed_query)
+    logger.info(
+        "CHAT TIMING | query_service.execute: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
 
-    # -- Post-execution validation of the returned rows.
+    # 6. Result validation
+    stage_start = time.perf_counter()
     data_report = validation.validate_rows(
-        execution.result.rows, columns=execution.result.columns
+        execution.result.rows,
+        columns=execution.result.columns,
     )
     combined_report = validation.combine(schema_report, data_report)
+    logger.info(
+        "CHAT TIMING | validate_rows + combine: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
 
     rows: List[Dict[str, Any]] = execution.result.rows
-    answer = summarize_result(metric_name, rows, governed_query.dimensions)
+
+    # 7. Answer generation
+    stage_start = time.perf_counter()
+    answer = summarize_result(
+        metric_name=metric_name,
+        rows=rows,
+        dimensions=governed_query.dimensions,
+        operation=interpretation.operation,
+        display_metric_name=interpretation.metric,
+)
+    logger.info(
+        "CHAT TIMING | summarize_result: %.3f sec",
+        time.perf_counter() - stage_start,
+    )
+
+    logger.info(
+        "CHAT TIMING | TOTAL: %.3f sec",
+        time.perf_counter() - total_start,
+    )
 
     if combined_report.status == "ERROR":
-        logger.warning("Validation reported an error for question: %s", interpretation.question)
+        logger.warning(
+            "Validation reported an error for question: %s",
+            interpretation.question,
+        )
 
     return ChatQueryResponse(
         status="answered",
@@ -200,7 +265,8 @@ def chat_query(
             metric_formula=metric_definition.formula if metric_definition else None,
             dimensions=governed_query.dimensions,
             governed_query=governed_query,
-            source_model=execution.result.source_model or execution.plan.source_model,
+            source_model=execution.result.source_model
+            or execution.plan.source_model,
             row_count=execution.result.row_count,
             validation=combined_report,
             translation_notes=outcome.notes,

@@ -1119,61 +1119,260 @@ def summarize_result(
     metric_name: Optional[str],
     rows: Sequence[Dict[str, Any]],
     dimensions: Sequence[str],
+    operation: Optional[str] = None,
+    display_metric_name: Optional[str] = None,
 ) -> str:
-    """Build answer text deterministically from returned rows."""
+    """Generate deterministic, readable summaries from returned rows.
+
+    ``metric_name`` is the governed result-column name. ``display_metric_name``
+    is the metric wording supplied by the agent, when it differs from the
+    governed name. All values in the answer come from the returned rows.
+    """
+    from datetime import date, datetime
+    import math
 
     row_count = len(rows)
+    measure = display_metric_name or metric_name or "value"
+    operation_normalized = (operation or "").strip().lower()
 
-    measure = (
-        metric_name
-        or "value"
-    )
+    highest_operations = {"highest", "maximum", "max", "top", "most"}
+    lowest_operations = {"lowest", "minimum", "min", "least"}
+    is_highest = operation_normalized in highest_operations
+    is_lowest = operation_normalized in lowest_operations
 
-    if row_count == 0:
+    metric_keys = {
+        name.lower()
+        for name in (metric_name, display_metric_name)
+        if name
+    }
+
+    def get_measure_value(row: Dict[str, Any]) -> Any:
+        """Read the value from the actual returned metric column."""
+        for candidate in (metric_name, display_metric_name):
+            if candidate and candidate in row:
+                return row[candidate]
+
+        for key, value in row.items():
+            if key.lower() in metric_keys:
+                return value
+
+        return None
+
+    def numeric_value(row: Dict[str, Any]) -> Optional[float]:
+        value = get_measure_value(row)
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        return number if math.isfinite(number) else None
+
+    def format_number(value: Any) -> str:
+        if value is None:
+            return "N/A"
+        if isinstance(value, bool):
+            return str(value)
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return f"{number:,.2f}" if math.isfinite(number) else str(value)
+
+    def format_period(value: Any) -> str:
+        if isinstance(value, (date, datetime)):
+            return value.strftime("%b %Y")
+        text = str(value)
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return text
+        return parsed.strftime("%b %Y")
+
+    def format_dimension_value(dimension: str, value: Any) -> str:
+        if value is None:
+            return "N/A"
+        if dimension.lower() in {
+            "month", "quarter", "year", "week", "day", "date",
+            "orderdate", "order_date",
+        }:
+            return format_period(value)
+        return str(value)
+
+    def describe_row(row: Dict[str, Any]) -> str:
+        labels = [
+            f"{dimension} {format_dimension_value(dimension, row.get(dimension))}"
+            for dimension in dimensions
+        ]
+        return " and ".join(labels) if labels else "the result"
+
+    if not rows:
         return (
-            "No rows matched the governed query "
-            "for this question."
+            f"No matching records were found for {measure}. "
+            "Try adjusting your filters or selecting another period."
         )
 
-    # Time-series / overall metric query.
-    # When there are multiple rows but no normal dimensions,
-    # summarize the number of time periods instead of
-    # reporting only the first row.
-    if not dimensions:
-        if row_count > 1:
+    # Highest/lowest must be handled before the single-row branch: governed
+    # highest/lowest queries intentionally return only the winning row.
+    if dimensions and (is_highest or is_lowest):
+        candidates = [row for row in rows if numeric_value(row) is not None]
+        if not candidates:
             return (
-                f"Returned {row_count} time periods "
-                f"of {measure} data."
+                f"The query returned results for {measure}, but numeric values "
+                "were unavailable for comparison."
             )
 
-        value = rows[0].get(measure)
+        selected_row = (
+            max(candidates, key=numeric_value)
+            if is_highest
+            else min(candidates, key=numeric_value)
+        )
+        selected_value = format_number(get_measure_value(selected_row))
+        dimension_name = dimensions[0].lower()
+        item_label = describe_row(selected_row)
 
-        return f"{measure} = {value}."
-
-    if row_count == 1:
-        row = rows[0]
-
-        labelled = ", ".join(
-            f"{dimension} = "
-            f"{row.get(dimension)}"
-            for dimension in dimensions
+        if is_highest:
+            return (
+                f"The {dimension_name} with the highest {measure.lower()} is "
+                f"{item_label}, with {measure.lower()} of {selected_value}."
+            )
+        return (
+            f"The {dimension_name} with the lowest {measure.lower()} is "
+            f"{item_label}, with {measure.lower()} of {selected_value}."
         )
 
+    # Grouped results such as profit by category or sales by region.
+    if dimensions:
+        dimension = dimensions[0]
+        valid_rows = [row for row in rows if row.get(dimension) is not None]
+        if not valid_rows:
+            return (
+                f"The query returned {row_count} rows, but no values were "
+                f"available for {dimension}."
+            )
+
+        numeric_rows = [row for row in valid_rows if numeric_value(row) is not None]
+        if not numeric_rows:
+            return (
+                f"The query returned {row_count} results for {measure}, grouped "
+                f"by {dimension}, but numeric values were unavailable for comparison."
+            )
+
+        if row_count == 1:
+            row = rows[0]
+            return (
+                f"{measure} for {describe_row(row)}: "
+                f"{format_number(get_measure_value(row))}."
+            )
+
+        ranked_rows = sorted(numeric_rows, key=numeric_value, reverse=True)
+        top_row = ranked_rows[0]
+        summary = (
+            f"{measure} by {dimension}\n\n"
+            f"{describe_row(top_row)} has the highest returned value at "
+            f"{format_number(get_measure_value(top_row))}."
+        )
+
+        other_rows = ranked_rows[1:4]
+        if other_rows:
+            other_results = "; ".join(
+                f"{describe_row(row)}: {format_number(get_measure_value(row))}"
+                for row in other_rows
+            )
+            summary += f"\n\nOther results: {other_results}."
+
+        summary += f"\n\nA total of {row_count} result rows were returned."
+        return summary
+
+    # Time-series queries have no ordinary dimensions but return a period key.
+    if row_count > 1:
+        first_row = rows[0]
+        period_names = {
+            "month", "quarter", "year", "week", "day", "date",
+            "orderdate", "order_date",
+        }
+        period_key = next(
+            (
+                key for key in first_row
+                if key.lower() not in metric_keys and key.lower() in period_names
+            ),
+            None,
+        )
+
+        if period_key is None:
+            period_key = next(
+                (
+                    key for key, value in first_row.items()
+                    if key.lower() not in metric_keys
+                    and (
+                        isinstance(value, (date, datetime))
+                        or (
+                            isinstance(value, str)
+                            and len(value) >= 7
+                            and value[4:5] == "-"
+                        )
+                    )
+                ),
+                None,
+            )
+
+        if period_key is not None:
+            valid_rows = [
+                row for row in rows
+                if row.get(period_key) is not None and numeric_value(row) is not None
+            ]
+            if valid_rows:
+                first = valid_rows[0]
+                last = valid_rows[-1]
+                first_value = numeric_value(first)
+                last_value = numeric_value(last)
+                first_period = format_dimension_value(period_key, first.get(period_key))
+                last_period = format_dimension_value(period_key, last.get(period_key))
+
+                summary = (
+                    f"{measure} trend\n\n"
+                    f"The query returned {len(valid_rows)} time periods, from "
+                    f"{first_period} to {last_period}.\n\n"
+                    f"Starting value: {format_number(first_value)} ({first_period})\n"
+                    f"Ending value: {format_number(last_value)} ({last_period})"
+                )
+
+                if first_value != 0:
+                    percentage_change = (
+                        (last_value - first_value) / abs(first_value)
+                    ) * 100
+                    if percentage_change > 0:
+                        direction = "increased"
+                    elif percentage_change < 0:
+                        direction = "decreased"
+                    else:
+                        direction = "remained unchanged"
+                    summary += (
+                        f"\n\nOverall change: {measure} {direction} by "
+                        f"{abs(percentage_change):,.2f}% between the first "
+                        "and last returned periods."
+                    )
+
+                peak_row = max(valid_rows, key=numeric_value)
+                peak_period = format_dimension_value(
+                    period_key, peak_row.get(period_key)
+                )
+                summary += (
+                    f"\n\nHighest returned period: {peak_period}, with "
+                    f"{format_number(get_measure_value(peak_row))}."
+                )
+                return summary
+
         return (
-            f"{measure} for "
-            f"{labelled} = "
-            f"{row.get(measure)}."
+            f"The query returned {row_count} results for {measure}. "
+            "Review the chart to explore the individual values."
         )
 
     return (
-        f"Returned {row_count} rows of "
-        f"{measure} grouped by "
-        f"{', '.join(dimensions)}. "
-        f"The first row is "
-        f"{rows[0].get(dimensions[0])} "
-        f"with {measure} = "
-        f"{rows[0].get(measure)}."
+        f"{measure}\n\n"
+        f"The returned value is {format_number(get_measure_value(rows[0]))}."
     )
+
 class QueryService:
     """Compiles and executes governed queries against the warehouse."""
 

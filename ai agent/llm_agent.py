@@ -19,6 +19,8 @@ system_prompt = PROMPT_FILE.read_text(
 llm = ChatOllama(
     model="llama3.1:latest",
     temperature=0,
+    keep_alive="30m",
+    num_predict=64,
 )
 
 

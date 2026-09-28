@@ -232,28 +232,28 @@ def identify_operation(question):
 
 def identify_time_operation(question):
     """
-    Time-series questions such as "monthly sales trend"
-    need an aggregation operation, but the user is not
-    asking for highest/lowest/compare.
+    Determine the operation for a business question.
 
-    Therefore a time-series query defaults to total.
+    Explicit operations such as highest, lowest, compare,
+    or total are preserved.
+
+    Time-series questions without an explicit operation
+    default to total.
     """
 
-    time_granularity = identify_time_granularity(
-        question
-    )
-
-    if time_granularity is None:
-        return None
-
+    # First check for an explicit operation.
     operation = identify_operation(question)
 
-    # Explicit ranking/comparison operations remain unchanged.
     if operation is not None:
         return operation
 
-    return "total"
+    # If there is no explicit operation, check for time-series intent.
+    time_granularity = identify_time_granularity(question)
 
+    if time_granularity is not None:
+        return "total"
+
+    return None
 
 def detect_root_cause_intent(question):
     """

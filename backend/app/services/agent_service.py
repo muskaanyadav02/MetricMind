@@ -10,6 +10,7 @@ or invent values that the agent did not produce.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -111,11 +112,28 @@ class AgentService:
             AgentError or AgentUnavailableError on failure.
         """
 
+        total_start = time.perf_counter()
+
+        # -----------------------------------------------------------
+        # Run the actual local AI agent.
+        # -----------------------------------------------------------
+
+        adapter_start = time.perf_counter()
+
         raw = self._adapter.interpret(question)
+
+        adapter_elapsed = time.perf_counter() - adapter_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | adapter.interpret: %.3f sec",
+            adapter_elapsed,
+        )
 
         # -----------------------------------------------------------
         # Extract ambiguity information.
         # -----------------------------------------------------------
+
+        ambiguity_start = time.perf_counter()
 
         raw_ambiguity = raw.get("ambiguity")
 
@@ -143,9 +161,18 @@ class AgentService:
         else:
             ambiguity = AmbiguityInfo()
 
+        ambiguity_elapsed = time.perf_counter() - ambiguity_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | ambiguity extraction: %.3f sec",
+            ambiguity_elapsed,
+        )
+
         # -----------------------------------------------------------
         # Extract filters produced by the agent.
         # -----------------------------------------------------------
+
+        filters_start = time.perf_counter()
 
         raw_filters = raw.get("filters")
 
@@ -190,9 +217,18 @@ class AgentService:
                     candidate_market.strip()
                 )
 
+        filters_elapsed = time.perf_counter() - filters_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | filter extraction: %.3f sec",
+            filters_elapsed,
+        )
+
         # -----------------------------------------------------------
         # Extract core semantic fields.
         # -----------------------------------------------------------
+
+        semantic_start = time.perf_counter()
 
         metric = raw.get("metric")
         dimension = raw.get("dimension")
@@ -231,7 +267,20 @@ class AgentService:
                 raw_time_granularity.strip()
             )
 
-        return AgentInterpretation(
+        semantic_elapsed = time.perf_counter() - semantic_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | semantic extraction: %.3f sec",
+            semantic_elapsed,
+        )
+
+        # -----------------------------------------------------------
+        # Build the normalised Pydantic response.
+        # -----------------------------------------------------------
+
+        model_start = time.perf_counter()
+
+        result = AgentInterpretation(
             question=question,
             raw=raw,
 
@@ -268,6 +317,26 @@ class AgentService:
             market=market,
             ambiguity=ambiguity,
         )
+
+        model_elapsed = time.perf_counter() - model_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | AgentInterpretation construction: %.3f sec",
+            model_elapsed,
+        )
+
+        # -----------------------------------------------------------
+        # Total service timing.
+        # -----------------------------------------------------------
+
+        total_elapsed = time.perf_counter() - total_start
+
+        logger.info(
+            "AGENT SERVICE TIMING | TOTAL: %.3f sec",
+            total_elapsed,
+        )
+
+        return result
 
 
 def get_agent_service() -> AgentService:
