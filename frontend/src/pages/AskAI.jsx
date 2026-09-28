@@ -1,3 +1,4 @@
+
 import {
   ArrowRight,
   Bot,
@@ -7,7 +8,115 @@ import {
 
 import { useState } from "react";
 
+import ChartCard from "../components/ChartCard";
 import "./AskAI.css";
+
+// Check whether a value can safely be plotted as a number.
+function isNumericValue(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+
+  return (
+    typeof value === "string" &&
+    value.trim() !== "" &&
+    Number.isFinite(Number(value))
+  );
+}
+
+// Build chart configuration from the actual backend response.
+function buildChartConfig(result) {
+  const rows = Array.isArray(result?.data)
+    ? result.data.filter(
+        (row) =>
+          row &&
+          typeof row === "object" &&
+          !Array.isArray(row)
+      )
+    : [];
+
+  if (rows.length === 0) return null;
+
+  const evidence = result.evidence || {};
+  const query = evidence.governed_query || {};
+  const firstRow = rows[0];
+  const rowKeys = Object.keys(firstRow);
+
+  const dimensionCandidates = [
+    ...(Array.isArray(evidence.dimensions)
+      ? evidence.dimensions
+      : []),
+    ...(Array.isArray(query.dimensions)
+      ? query.dimensions
+      : []),
+    ...(Array.isArray(query.time_dimensions)
+      ? query.time_dimensions.map((item) =>
+          typeof item === "string"
+            ? item
+            : item?.dimension
+        )
+      : []),
+  ].filter((key) => typeof key === "string");
+
+  const xKey =
+    dimensionCandidates.find((key) =>
+      Object.prototype.hasOwnProperty.call(firstRow, key)
+    ) ||
+    rowKeys.find(
+      (key) => !isNumericValue(firstRow[key])
+    );
+
+  const metricCandidates = [
+    ...(Array.isArray(query.measures)
+      ? query.measures
+      : []),
+    evidence.governed_metric,
+  ].filter((key) => typeof key === "string");
+
+  const dataKey =
+    metricCandidates.find(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(firstRow, key) &&
+        isNumericValue(firstRow[key])
+    ) ||
+    rowKeys.find(
+      (key) =>
+        key !== xKey &&
+        isNumericValue(firstRow[key])
+    );
+
+  if (!xKey || !dataKey) return null;
+
+  const chartData = rows
+    .filter(
+      (row) =>
+        row[xKey] != null &&
+        isNumericValue(row[dataKey])
+    )
+    .map((row) => ({
+      ...row,
+      [dataKey]: Number(row[dataKey]),
+    }));
+
+  if (chartData.length === 0) return null;
+
+  const timeDimensions = Array.isArray(query.time_dimensions)
+    ? query.time_dimensions
+    : [];
+
+  const isTimeSeries =
+    timeDimensions.length > 0 ||
+    /month|year|date|day|quarter/i.test(xKey);
+
+  return {
+    title: `${dataKey} by ${xKey}`,
+    subtitle: `${chartData.length} result row(s)`,
+    data: chartData,
+    dataKey,
+    xKey,
+    type: isTimeSeries ? "area" : "bar",
+  };
+}
 
 function AskAI() {
   const [question, setQuestion] = useState("");
@@ -19,7 +128,6 @@ function AskAI() {
 
     if (!clean || loading) return;
 
-    // Show user's question immediately
     setMessages((prev) => [
       ...prev,
       {
@@ -32,23 +140,34 @@ function AskAI() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/chat/query", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          question: clean,
-        }),
-      });
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/v1/chat/query",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: clean,
+          }),
+        }
+      );
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result.detail || "The backend could not process the question."
-        );
+        const detail =
+          typeof result.detail === "string"
+            ? result.detail
+            : "The backend could not process the question.";
+
+        throw new Error(detail);
       }
+
+      const chart =
+        result.status === "answered"
+          ? buildChartConfig(result)
+          : null;
 
       setMessages((prev) => [
         ...prev,
@@ -58,19 +177,24 @@ function AskAI() {
             result.answer ||
             result.message ||
             "I could not find an answer for this question.",
+          chart,
         },
       ]);
     } catch (error) {
+      console.error("MetricMind API error:", error);
+
       setMessages((prev) => [
         ...prev,
         {
           type: "ai",
           text:
-            "I couldn't connect to the MetricMind backend. Please make sure the backend is running.",
+            error instanceof TypeError
+              ? "I couldn't connect to the MetricMind backend. Please make sure the backend is running."
+              : error.message ||
+                "Something went wrong while processing your question.",
+          chart: null,
         },
       ]);
-
-      console.error("MetricMind API error:", error);
     } finally {
       setLoading(false);
     }
@@ -96,7 +220,6 @@ function AskAI() {
       </div>
 
       <div className="ask-layout">
-
         <div className="chat-card">
           <div className="chat-header">
             <div className="ai-avatar">
@@ -148,6 +271,13 @@ function AskAI() {
                     </strong>
 
                     <p>{message.text}</p>
+
+                    {message.type === "ai" &&
+                      message.chart && (
+                        <div className="message-chart">
+                          <ChartCard {...message.chart} />
+                        </div>
+                      )}
                   </div>
                 </div>
               ))
@@ -182,7 +312,7 @@ function AskAI() {
 
             <button
               onClick={() => askQuestion()}
-              disabled={loading}
+              disabled={loading || !question.trim()}
             >
               {loading ? "Thinking..." : "Ask"}
               <ArrowRight size={14} />
@@ -213,7 +343,6 @@ function AskAI() {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );
