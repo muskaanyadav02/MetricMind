@@ -4,7 +4,7 @@ The AI agent lives in a directory literally named ``ai agent``.
 This adapter loads the agent by file path while temporarily making
 the agent directory importable so its internal modules can resolve.
 
-The adapter calls the LLM-powered interpretation layer only.
+The adapter calls the AI-agent interpretation layer only.
 Execution through Cube remains the responsibility of the backend
 query service.
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import time
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -99,7 +100,7 @@ def _temporary_module_aliases(
 
 @lru_cache(maxsize=1)
 def load_agent_module() -> ModuleType:
-    """Load and cache the LLM-powered local agent."""
+    """Load and cache the local AI agent."""
 
     agent_dir = resolve_agent_dir()
 
@@ -131,7 +132,7 @@ def load_agent_module() -> ModuleType:
         # from schema import ...
         #
         # Temporarily add the agent directory to sys.path so
-        # query_builder, validator, semantic_client and llm_agent
+        # query_builder, validator, semantic_client, and llm_agent
         # can resolve normally when agent.py is loaded.
 
         agent_dir_string = str(agent_dir)
@@ -176,7 +177,7 @@ def load_agent_module() -> ModuleType:
 
 
 class LocalAgentAdapter:
-    """Wrapper around the LLM-powered local AI agent."""
+    """Wrapper around the local MetricMind AI agent."""
 
     name = "local-llama-agent"
 
@@ -272,7 +273,14 @@ class LocalAgentAdapter:
         self,
         question: str,
     ) -> Dict[str, object]:
-        """Interpret a question using Llama without executing the query."""
+        """Interpret a question using the local AI agent.
+
+        The AI agent itself decides whether the question can be
+        handled by the deterministic fast path or whether Llama
+        3.1 is required as a fallback.
+
+        This method does not execute Cube or the warehouse query.
+        """
 
         if not isinstance(
             question,
@@ -291,9 +299,25 @@ class LocalAgentAdapter:
 
             raise
 
+        # -----------------------------------------------------------
+        # Use the public `interpret()` function exposed by agent.py.
+        #
+        # This is important because agent.py now performs:
+        #
+        #   deterministic parser
+        #          ↓
+        #      validation
+        #          ↓
+        #   fast path when possible
+        #          ↓
+        #   Llama fallback only when necessary
+        #
+        # Do NOT call `_build_llm_query()` directly here.
+        # -----------------------------------------------------------
+
         interpret_function = getattr(
             module,
-            "_build_llm_query",
+            "interpret",
             None,
         )
 
@@ -301,8 +325,24 @@ class LocalAgentAdapter:
 
             raise AgentError(
                 "The AI agent does not expose "
-                "the LLM interpretation function."
+                "the interpretation function."
             )
+
+        # -----------------------------------------------------------
+        # Timing instrumentation
+        #
+        # This tells us exactly how long the AI-agent interpretation
+        # stage takes. It helps us determine whether the remaining
+        # response delay comes from Llama or from the backend/Cube
+        # query executed after this method returns.
+        # -----------------------------------------------------------
+
+        start_time = time.perf_counter()
+
+        logger.info(
+            "AI agent interpretation started: %s",
+            question,
+        )
 
         try:
 
@@ -312,14 +352,36 @@ class LocalAgentAdapter:
 
         except Exception as exc:
 
+            elapsed_time = (
+                time.perf_counter()
+                - start_time
+            )
+
             logger.exception(
-                "The LLM-powered AI agent failed "
-                "to interpret the question"
+                "The AI-powered agent failed "
+                "to interpret the question after "
+                "%.3f seconds",
+                elapsed_time,
             )
 
             raise AgentError(
                 "The AI agent could not interpret the question."
             ) from exc
+
+        elapsed_time = (
+            time.perf_counter()
+            - start_time
+        )
+
+        logger.info(
+            "AI agent interpretation completed "
+            "in %.3f seconds",
+            elapsed_time,
+        )
+
+        # -----------------------------------------------------------
+        # Validate the returned structure.
+        # -----------------------------------------------------------
 
         if not isinstance(
             result,
