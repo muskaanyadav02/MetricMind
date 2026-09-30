@@ -5,10 +5,10 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
-
 import { useState } from "react";
 
 import ChartCard from "../components/ChartCard";
+import { buildFollowUpSuggestions } from "../utils/followUpSuggestions.mjs";
 import "./AskAI.css";
 
 // Check whether a value can safely be plotted as a number.
@@ -164,10 +164,15 @@ function AskAI() {
         throw new Error(detail);
       }
 
-      const chart =
-        result.status === "answered"
-          ? buildChartConfig(result)
-          : null;
+      const isAnswered = result.status === "answered";
+
+      const chart = isAnswered
+        ? buildChartConfig(result)
+        : null;
+
+      const followUps = isAnswered
+        ? buildFollowUpSuggestions(result, clean)
+        : [];
 
       setMessages((prev) => [
         ...prev,
@@ -178,6 +183,7 @@ function AskAI() {
             result.message ||
             "I could not find an answer for this question.",
           chart,
+          followUps,
         },
       ]);
     } catch (error) {
@@ -193,6 +199,7 @@ function AskAI() {
               : error.message ||
                 "Something went wrong while processing your question.",
           chart: null,
+          followUps: [],
         },
       ]);
     } finally {
@@ -278,6 +285,35 @@ function AskAI() {
                           <ChartCard {...message.chart} />
                         </div>
                       )}
+
+                    {message.type === "ai" &&
+                      message.followUps?.length > 0 && (
+                        <div className="follow-up-suggestions">
+                          <div className="follow-up-title">
+                            <Sparkles size={13} />
+                            Explore further
+                          </div>
+
+                          <div className="follow-up-list">
+                            {message.followUps.map(
+                              (followUp) => (
+                                <button
+                                  key={followUp}
+                                  type="button"
+                                  onClick={() =>
+                                    askQuestion(followUp)
+                                  }
+                                  disabled={loading}
+                                  title={followUp}
+                                >
+                                  <span>{followUp}</span>
+                                  <ArrowRight size={13} />
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </div>
               ))
@@ -311,6 +347,7 @@ function AskAI() {
             />
 
             <button
+              type="button"
               onClick={() => askQuestion()}
               disabled={loading || !question.trim()}
             >
@@ -333,6 +370,7 @@ function AskAI() {
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion}
+                type="button"
                 onClick={() => askQuestion(suggestion)}
                 disabled={loading}
               >
