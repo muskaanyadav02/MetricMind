@@ -1,3 +1,4 @@
+
 .ask-page {
   display: flex;
   flex-direction: column;
@@ -125,6 +126,12 @@
   color: #60a5fa;
 }
 
+.message-content {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
 .message-content strong {
   font-size: 12px;
 }
@@ -136,6 +143,105 @@
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* Charts inside AI responses */
+
+.message-chart {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 14px;
+}
+
+.message-chart .chart-card {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 360px;
+  box-sizing: border-box;
+}
+
+.message-chart .chart-wrapper {
+  display: block;
+  width: 100%;
+  height: 280px;
+  min-width: 0;
+}
+
+/* Smart Follow-Up Suggestions */
+
+.follow-up-suggestions {
+  width: 100%;
+  max-width: 680px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.follow-up-title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.follow-up-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.follow-up-list button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.06);
+  color: #c4b5fd;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.follow-up-list button:hover:not(:disabled) {
+  border-color: rgba(139, 92, 246, 0.65);
+  background: rgba(139, 92, 246, 0.14);
+  transform: translateY(-1px);
+}
+
+.follow-up-list button:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+}
+
+.follow-up-list button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.follow-up-list button span {
+  overflow-wrap: anywhere;
+}
+
+.follow-up-list button svg {
+  flex: 0 0 auto;
+  color: #a78bfa;
+}
+
+/* Chat input */
 
 .chat-input-area {
   display: flex;
@@ -171,7 +277,15 @@
   color: white;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
 }
+
+.chat-input-area button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Existing sidebar suggestions */
 
 .suggestions-card {
   height: fit-content;
@@ -208,6 +322,7 @@
   color: #aaaabd;
   text-align: left;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .suggestion-list button:hover {
@@ -220,56 +335,49 @@
   color: #747588;
 }
 
+/* Responsive layout */
+
 @media (max-width: 900px) {
   .ask-layout {
     grid-template-columns: 1fr;
   }
 }
-.message-chart {
-  width: 100%;
-  max-width: 680px;
-  margin-top: 14px;
-}
 
-.message-chart .chart-card {
-  width: 100%;
-  min-width: 0;
-  min-height: 320px;
-  box-sizing: border-box;
-}
+@media (max-width: 600px) {
+  .chat-card {
+    min-height: 500px;
+  }
 
-.message-chart .chart-wrapper {
-  width: 100%;
-  height: 255px;
-  min-width: 0;
-}
+  .chat-messages {
+    padding: 14px;
+  }
 
-/* AI response chart sizing */
-.message-content {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-}
+  .chat-input-area {
+    padding: 10px;
+  }
 
-.message-chart {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  margin-top: 14px;
-}
+  .chat-input-area button {
+    padding: 0 11px;
+  }
 
-.message-chart .chart-card {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  min-height: 360px;
-  box-sizing: border-box;
-}
+  .follow-up-list {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-.message-chart .chart-wrapper {
-  display: block;
-  width: 100%;
-  height: 280px;
-  min-width: 0;
+  .follow-up-list button {
+    width: 100%;
+  }
+
+  .message-chart .chart-card {
+    min-height: 300px;
+  }
+
+  .message-chart .chart-wrapper {
+    height: 240px;
+  }
+
+  .suggestions-card {
+    padding: 18px;
+  }
 }

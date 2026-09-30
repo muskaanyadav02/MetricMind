@@ -118,6 +118,97 @@ function buildChartConfig(result) {
   };
 }
 
+// Generate deterministic follow-up questions locally.
+// No additional backend or LLM request is made here.
+function buildFollowUpSuggestions(result, question) {
+  const normalizedQuestion = question.toLowerCase();
+
+  const evidence = result?.evidence || {};
+  const query = evidence.governed_query || {};
+
+  const context = [
+    normalizedQuestion,
+    ...(Array.isArray(query.measures) ? query.measures : []),
+    ...(Array.isArray(query.dimensions) ? query.dimensions : []),
+    ...(Array.isArray(evidence.dimensions)
+      ? evidence.dimensions
+      : []),
+  ]
+    .filter((value) => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  let candidates;
+
+  if (/profit|margin|loss/.test(context)) {
+    candidates = [
+      "Which category has the highest profit?",
+      "Which region has the lowest profit?",
+      "Show the yearly profit trend",
+      "Which products have low profit?",
+      "Which region has the highest sales?",
+    ];
+  } else if (/sales|revenue|turnover/.test(context)) {
+    candidates = [
+      "Which category has the highest sales?",
+      "Which region has the highest sales?",
+      "Show the monthly sales trend",
+      "Which products generate the most profit?",
+      "Compare sales across countries",
+    ];
+  } else if (/product|sub.?categor|category/.test(context)) {
+    candidates = [
+      "Which products have the highest profit?",
+      "Which category has the highest sales?",
+      "Which products have low profit?",
+      "Which region has the highest sales?",
+      "Show the yearly profit trend",
+    ];
+  } else if (/region|country|market/.test(context)) {
+    candidates = [
+      "Which region has the highest sales?",
+      "Which category has the highest profit?",
+      "Compare sales across countries",
+      "Show the monthly sales trend",
+      "Which products have low profit?",
+    ];
+  } else if (/month|year|date|trend|time/.test(context)) {
+    candidates = [
+      "Show the monthly sales trend",
+      "Show the yearly profit trend",
+      "Which category has the highest profit?",
+      "Which region has the highest sales?",
+      "Which products have low profit?",
+    ];
+  } else {
+    candidates = [
+      "Which category has the highest profit?",
+      "Which region has the highest sales?",
+      "Show the monthly sales trend",
+      "Which products have low profit?",
+      "Compare sales across countries",
+    ];
+  }
+
+  // Do not suggest the exact question the user just asked.
+  const normalizedCurrentQuestion = question
+    .trim()
+    .toLowerCase()
+    .replace(/[?!.\s]+$/, "");
+
+  const uniqueSuggestions = [
+    ...new Set(candidates),
+  ].filter(
+    (suggestion) =>
+      suggestion
+        .trim()
+        .toLowerCase()
+        .replace(/[?!.\s]+$/, "") !== normalizedCurrentQuestion
+  );
+
+  return uniqueSuggestions.slice(0, 3);
+}
+
 function AskAI() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
@@ -164,10 +255,15 @@ function AskAI() {
         throw new Error(detail);
       }
 
-      const chart =
-        result.status === "answered"
-          ? buildChartConfig(result)
-          : null;
+      const isAnswered = result.status === "answered";
+
+      const chart = isAnswered
+        ? buildChartConfig(result)
+        : null;
+
+      const followUps = isAnswered
+        ? buildFollowUpSuggestions(result, clean)
+        : [];
 
       setMessages((prev) => [
         ...prev,
@@ -178,6 +274,7 @@ function AskAI() {
             result.message ||
             "I could not find an answer for this question.",
           chart,
+          followUps,
         },
       ]);
     } catch (error) {
@@ -193,6 +290,7 @@ function AskAI() {
               : error.message ||
                 "Something went wrong while processing your question.",
           chart: null,
+          followUps: [],
         },
       ]);
     } finally {
@@ -278,6 +376,35 @@ function AskAI() {
                           <ChartCard {...message.chart} />
                         </div>
                       )}
+
+                    {message.type === "ai" &&
+                      message.followUps?.length > 0 && (
+                        <div className="follow-up-suggestions">
+                          <div className="follow-up-title">
+                            <Sparkles size={13} />
+                            Explore further
+                          </div>
+
+                          <div className="follow-up-list">
+                            {message.followUps.map(
+                              (followUp) => (
+                                <button
+                                  key={followUp}
+                                  type="button"
+                                  onClick={() =>
+                                    askQuestion(followUp)
+                                  }
+                                  disabled={loading}
+                                  title={followUp}
+                                >
+                                  <span>{followUp}</span>
+                                  <ArrowRight size={13} />
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </div>
               ))
@@ -311,6 +438,7 @@ function AskAI() {
             />
 
             <button
+              type="button"
               onClick={() => askQuestion()}
               disabled={loading || !question.trim()}
             >
@@ -333,6 +461,7 @@ function AskAI() {
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion}
+                type="button"
                 onClick={() => askQuestion(suggestion)}
                 disabled={loading}
               >
