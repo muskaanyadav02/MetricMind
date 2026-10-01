@@ -125,3 +125,254 @@
     grid-template-columns: 1fr;
   }
 }
+/* Business Insight Center additions */
+
+.insight-state {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.insight-state p {
+  max-width: 560px;
+  overflow-wrap: anywhere;
+}
+
+.insight-data-range {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  margin-top: 10px;
+}
+
+.investigate-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--border-color, #dfe3eb);
+  border-radius: 10px;
+  background: var(--card-bg, #ffffff);
+  color: var(--text-primary, #252b3b);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.investigate-button:hover {
+  transform: translateY(-1px);
+}
+
+.investigate-button:focus-visible {
+  outline: 2px solid var(--primary-color, #7564e8);
+  outline-offset: 3px;
+}
+
+.insight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.insight-summary-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--border-color, #e4e7ee);
+  border-radius: 16px;
+  background: var(--card-bg, #ffffff);
+}
+
+.insight-summary-tile > span {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.insight-summary-tile strong {
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  overflow-wrap: anywhere;
+}
+
+.loss-product-list {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--border-color, #e4e7ee);
+  border-radius: 16px;
+  background: var(--card-bg, #ffffff);
+}
+
+.loss-product-list h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.loss-product-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color, #e4e7ee);
+}
+
+.loss-product-row:last-child {
+  border-bottom: none;
+}
+
+.loss-product-row span {
+  overflow-wrap: anywhere;
+}
+
+.loss-product-row strong {
+  white-space: nowrap;
+}
+
+.insight-disclaimer {
+  margin-top: 20px;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  line-height: 1.6;
+}
+
+.spin {
+  animation: insight-spin 1s linear infinite;
+}
+
+@keyframes insight-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .insight-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .insight-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .loss-product-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+/* Business Insights: improve readability in dark mode */
+.insight-summary-tile {
+  background: #111321 !important;
+  border: 1px solid #2b2d42;
+  color: #f8fafc;
+}
+
+.insight-summary-tile span {
+  color: #a7aec4;
+}
+
+.insight-summary-tile strong {
+  color: #f8fafc;
+}
+
+.loss-product-list {
+  background: #111321 !important;
+  border: 1px solid #2b2d42;
+}
+
+.loss-product-row {
+  background: transparent;
+  border-color: #2b2d42;
+  color: #e5e7eb;
+}
+
+.loss-product-row span {
+  color: #e5e7eb;
+}
+
+.insight-disclaimer {
+  color: #a7aec4;
+}
+
+/* Fix Business Insights card layout */
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.insight-card.large-insight {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 24px;
+  gap: 12px;
+}
+
+.insight-card.large-insight h3,
+.insight-card.large-insight p {
+  overflow-wrap: anywhere;
+}
+
+.insight-card.large-insight p {
+  line-height: 1.6;
+  min-height: 3.2em;
+}
+
+.insight-card-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #2b2d42;
+}
+
+.insight-metric {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.insight-metric strong {
+  color: #f8fafc;
+  font-size: 1.5rem;
+}
+
+.insight-metric span {
+  color: #a7aec4;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1000px) {
+  .insight-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .insight-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .insight-card.large-insight {
+    padding: 18px;
+  }
+}

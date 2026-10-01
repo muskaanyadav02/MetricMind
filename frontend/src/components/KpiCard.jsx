@@ -1,3 +1,4 @@
+
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -7,9 +8,10 @@ function KpiCard({
   title,
   value,
   change,
-  icon: Icon,
+  icon,
   type = "purple",
 }) {
+  const Icon = icon;
   const positive = !String(change).includes("-");
 
   return (

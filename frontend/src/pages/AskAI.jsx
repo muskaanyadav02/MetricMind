@@ -1,11 +1,12 @@
 
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Bot,
   Sparkles,
   User,
 } from "lucide-react";
-import { useState } from "react";
 
 import ChartCard from "../components/ChartCard";
 import { buildFollowUpSuggestions } from "../utils/followUpSuggestions.mjs";
@@ -51,9 +52,7 @@ function buildChartConfig(result) {
       : []),
     ...(Array.isArray(query.time_dimensions)
       ? query.time_dimensions.map((item) =>
-          typeof item === "string"
-            ? item
-            : item?.dimension
+          typeof item === "string" ? item : item?.dimension
         )
       : []),
   ].filter((key) => typeof key === "string");
@@ -62,14 +61,10 @@ function buildChartConfig(result) {
     dimensionCandidates.find((key) =>
       Object.prototype.hasOwnProperty.call(firstRow, key)
     ) ||
-    rowKeys.find(
-      (key) => !isNumericValue(firstRow[key])
-    );
+    rowKeys.find((key) => !isNumericValue(firstRow[key]));
 
   const metricCandidates = [
-    ...(Array.isArray(query.measures)
-      ? query.measures
-      : []),
+    ...(Array.isArray(query.measures) ? query.measures : []),
     evidence.governed_metric,
   ].filter((key) => typeof key === "string");
 
@@ -80,9 +75,7 @@ function buildChartConfig(result) {
         isNumericValue(firstRow[key])
     ) ||
     rowKeys.find(
-      (key) =>
-        key !== xKey &&
-        isNumericValue(firstRow[key])
+      (key) => key !== xKey && isNumericValue(firstRow[key])
     );
 
   if (!xKey || !dataKey) return null;
@@ -119,9 +112,25 @@ function buildChartConfig(result) {
 }
 
 function AskAI() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Receive investigation questions from the Insights page.
+  useEffect(() => {
+    const suggestedQuestion = location.state?.question;
+
+    if (typeof suggestedQuestion === "string" && suggestedQuestion.trim()) {
+      setQuestion(suggestedQuestion);
+      navigate(location.pathname, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   const askQuestion = async (text = question) => {
     const clean = text.trim();
@@ -153,7 +162,13 @@ function AskAI() {
         }
       );
 
-      const result = await response.json();
+      let result;
+
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error("The backend returned an invalid response.");
+      }
 
       if (!response.ok) {
         const detail =
@@ -259,7 +274,7 @@ function AskAI() {
             ) : (
               messages.map((message, index) => (
                 <div
-                  key={index}
+                  key={`${message.type}-${index}`}
                   className={`message ${message.type}`}
                 >
                   <div className="message-icon">
@@ -279,12 +294,11 @@ function AskAI() {
 
                     <p>{message.text}</p>
 
-                    {message.type === "ai" &&
-                      message.chart && (
-                        <div className="message-chart">
-                          <ChartCard {...message.chart} />
-                        </div>
-                      )}
+                    {message.type === "ai" && message.chart && (
+                      <div className="message-chart">
+                        <ChartCard {...message.chart} />
+                      </div>
+                    )}
 
                     {message.type === "ai" &&
                       message.followUps?.length > 0 && (
@@ -295,22 +309,18 @@ function AskAI() {
                           </div>
 
                           <div className="follow-up-list">
-                            {message.followUps.map(
-                              (followUp) => (
-                                <button
-                                  key={followUp}
-                                  type="button"
-                                  onClick={() =>
-                                    askQuestion(followUp)
-                                  }
-                                  disabled={loading}
-                                  title={followUp}
-                                >
-                                  <span>{followUp}</span>
-                                  <ArrowRight size={13} />
-                                </button>
-                              )
-                            )}
+                            {message.followUps.map((followUp) => (
+                              <button
+                                key={followUp}
+                                type="button"
+                                onClick={() => askQuestion(followUp)}
+                                disabled={loading}
+                                title={followUp}
+                              >
+                                <span>{followUp}</span>
+                                <ArrowRight size={13} />
+                              </button>
+                            ))}
                           </div>
                         </div>
                       )}
@@ -336,9 +346,9 @@ function AskAI() {
           <div className="chat-input-area">
             <input
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
                   askQuestion();
                 }
               }}
@@ -362,9 +372,7 @@ function AskAI() {
 
           <h3>Start exploring your data</h3>
 
-          <p>
-            Try one of these questions to begin.
-          </p>
+          <p>Try one of these questions to begin.</p>
 
           <div className="suggestion-list">
             {suggestions.map((suggestion) => (
