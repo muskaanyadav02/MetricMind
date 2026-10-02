@@ -123,3 +123,132 @@
     grid-template-columns: 1fr;
   }
 }
+
+.settings-menu button {
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.settings-info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.settings-info-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.settings-info-card p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.settings-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 20px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.settings-toggle strong,
+.settings-toggle small {
+  display: block;
+}
+
+.settings-toggle strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.settings-toggle small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-toggle input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #8b5cf6;
+  cursor: pointer;
+}
+
+.settings-note {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.appearance-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 15px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.appearance-choice span {
+  flex: 1;
+}
+
+.appearance-choice.selected {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.settings-notice {
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  color: #4ade80;
+  font-size: 12px;
+}
+
+@media (max-width: 750px) {
+  .settings-menu button {
+    font-size: 12px;
+  }
+}
