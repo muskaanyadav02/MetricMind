@@ -103,3 +103,88 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: #6840a8;
 }
+
+/* Light theme — activated by the Appearance setting */
+:root[data-theme="light"] {
+  color: #1f2937;
+  background: #f5f6fb;
+  color-scheme: light;
+
+  --bg: #f5f6fb;
+  --bg-soft: #eef0f7;
+  --card: #ffffff;
+  --card-hover: #f0edfa;
+  --border: #dfe2eb;
+
+  --text: #1f2937;
+  --muted: #667085;
+  --muted-2: #858da0;
+
+  --purple: #7c3aed;
+  --purple-light: #8b5cf6;
+  --purple-dark: #6d28d9;
+}
+
+/* Apply the selected background and text colors */
+:root[data-theme="light"] html,
+:root[data-theme="light"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root[data-theme="light"] body {
+  background-image: none;
+}
+
+:root[data-theme="light"] .app {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Main navigation and content panels */
+:root[data-theme="light"] .sidebar,
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .navbar,
+:root[data-theme="light"] .app-header {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+:root[data-theme="light"] .settings-menu,
+:root[data-theme="light"] .settings-card,
+:root[data-theme="light"] .settings-info-card,
+:root[data-theme="light"] .card {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Inputs and controls */
+:root[data-theme="light"] input,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  background: #ffffff;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+:root[data-theme="light"] .theme-option,
+:root[data-theme="light"] .appearance-choice {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+:root[data-theme="light"] .appearance-choice.selected {
+  background: #ede9fe;
+  border-color: var(--purple);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f1f2f7;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c4bfd5;
+}
